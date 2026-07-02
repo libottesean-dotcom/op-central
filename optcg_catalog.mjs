@@ -4,7 +4,7 @@
 // cardmarketapi.com EN/JP in EUR) — i prezzi API sovrascrivono i placeholder tcggo.
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import {
-  cmIdUrl, cmSearchUrl, singleSlugUrl, expansionSlug,
+  cmSearchUrl, singleSlugUrl, expansionSlug, urlFromCmRec, bestCmUrl,
 } from "./optcg_cmapi.mjs";
 
 const cards = Object.values(JSON.parse(readFileSync("optcg_cards_raw.json", "utf8")));
@@ -78,8 +78,8 @@ function applyPrices(item, rec, id) {
   if (t7 != null) item.t7 = t7;
   if (t14 != null) item.t14 = t14;
   if (t30 != null) item.t30 = t30; else if (item.t30 == null && rec.avg30 != null) item.t30 = rec.avg30;
-  // idProduct batte lo slug: zero redirect "Invalid product!" su Cardmarket
-  if (id) item.url = cmIdUrl(id, item.type);
+  const apiUrl = urlFromCmRec(rec);
+  if (apiUrl) item.url = apiUrl;
   return true;
 }
 
@@ -270,7 +270,7 @@ for (const { c, price } of keptCards) {
     ebay: null,
     target: price != null ? Math.round(price) : 0,
     note: `${c.setName || ""}${c.version ? " · " + c.version : ""}`.trim(),
-    url: c.cm_id ? cmIdUrl(c.cm_id, "Carta") : singleSlugUrl(c.setName, c.name, c.code, c.version),
+    url: singleSlugUrl(c.setName, c.name, c.code, c.version),
     img: c.image || null,
     err: false,
     cmId: c.cm_id || null,
@@ -305,7 +305,7 @@ for (const { c, price } of keptCards) {
       cm: null, t30: null, t14: null, t7: null, target: 0,
       trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
       note: `${c.setName || ""} (JP)${jpInfo.ver ? " · " + jpInfo.ver : ""}`.trim(),
-      url: mapEntry.jp_id ? cmIdUrl(mapEntry.jp_id, "Carta") : jpSingleUrl(jpRec.expansion, c.setName, c.name, c.code, jpInfo.ver),
+      url: bestCmUrl(jpRec, jpSingleUrl(jpRec.expansion, c.setName, c.name, c.code, jpInfo.ver)),
       // immagine del prodotto GIAPPONESE (grafica JP), non quella EN riciclata:
       // l'URL immagine di cardmarketapi è pubblico e deterministico per product id
       img: jpRec.image_url || `https://cardmarketapi.com/cards/${mapEntry.jp_id}/image`,
@@ -341,8 +341,7 @@ for (const p of products) {
     target: p.cm_low != null ? Math.round(p.cm_low) : 0,
     note: p.setName || "",
     // Box: pagina canonica Booster-Boxes. Case: nessuna pagina pulita, resta la ricerca.
-    url: p.cm_id ? cmIdUrl(p.cm_id, isCase ? "Case" : "Box")
-      : (isBox ? (boxUrl(p.setName) || cmSearchUrl(name)) : cmSearchUrl(name)),
+    url: isBox ? (boxUrl(p.setName) || cmSearchUrl(name)) : cmSearchUrl(name),
     img: p.image || null,
     err: false,
     cmId: p.cm_id || null,
@@ -372,7 +371,7 @@ for (const e of Object.values(CMMAP)) {
     cm: null, t30: null, t14: null, t7: null, ebay: null,
     target: e.target ?? 0,
     note: e.note || "",
-    url: cmIdUrl(e.en_id, "Carta") || e.url || null,
+    url: bestCmUrl(rec, e.url || null),
     img: `https://cardmarketapi.com/cards/${e.en_id}/image`,
     err: false,
     cmId: Number(e.en_id) || null,

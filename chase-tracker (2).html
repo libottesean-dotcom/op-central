@@ -1155,15 +1155,8 @@
   // guadagno/perdita con segno (2 decimali sotto €100, interi sopra)
   const fmtPl = n => (n >= 0 ? "+" : "−") + "€" + Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 });
 
-  // Link Cardmarket: idProduct quando c'è cmId (affidabile al 100%), altrimenti slug dal catalogo
-  const cmLink = it => {
-    if (!it) return "";
-    if (it.cmId) {
-      const cat = (it.type === "Box" || it.type === "Case") ? "Booster-Boxes" : "Singles";
-      return `https://www.cardmarket.com/en/OnePiece/Products/${cat}?idProduct=${it.cmId}`;
-    }
-    return it.url || "";
-  };
+  // Link Cardmarket: slug nel path (catalog.js), mai ?idProduct= da solo
+  const cmLink = it => (it && it.url) ? it.url : "";
 
   let cdScrollY = 0;
 

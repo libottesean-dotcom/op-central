@@ -180,10 +180,8 @@ export const parseVerFromName = name => {
 export const verNum = v => v ? Number(String(v).replace(/\D/g, "")) : null;
 
 // ---- URL Cardmarket ----
-// idProduct è il link più affidabile: non dipende dallo slug (Tony-TonyChopper vs TonyTonyChopper).
-export const cmCategory = type => (type === "Box" || type === "Case") ? "Booster-Boxes" : "Singles";
-export const cmIdUrl = (id, type = "Carta") =>
-  id ? `https://www.cardmarket.com/en/OnePiece/Products/${cmCategory(type)}?idProduct=${id}` : null;
+// Cardmarket NON accetta ?idProduct= da solo (redirect "Invalid product!"): serve lo slug nel path.
+// Slug calibrato su URL reali: Tony-TonyChopper, Boa-Hancock, MonkeyDLuffy, ...
 export const cmSearchUrl = q =>
   `https://www.cardmarket.com/en/OnePiece/Products/Search?searchString=${encodeURIComponent(q)}`;
 
@@ -231,3 +229,5 @@ export const urlFromCmRec = rec => {
   if (!p || !rec?.expansion) return null;
   return singleSlugUrl(rec.expansion, p.name, p.code, p.ver);
 };
+
+export const bestCmUrl = (rec, fallback) => urlFromCmRec(rec) || fallback || null;
