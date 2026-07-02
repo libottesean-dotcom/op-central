@@ -47,6 +47,7 @@ jobs:
           node optcg_prices.mjs
           node optcg_history.mjs
           node optcg_history_db.mjs
+          node optcg_rarity.mjs
           node optcg_catalog.mjs
           node optcg_urls.mjs
           node optcg_verify.mjs
@@ -55,7 +56,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add catalog.js optcg_cmmap.json optcg_prices.json optcg_state.json \
+          git add catalog.js optcg_rarity.json optcg_cmmap.json optcg_prices.json optcg_state.json \
             optcg_cards_raw.json optcg_products_raw.json optcg_history/ || true
           if git diff --staged --quiet; then
             echo "Nessuna modifica da pubblicare."

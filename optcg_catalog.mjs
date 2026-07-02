@@ -7,6 +7,7 @@ import {
   cmSearchUrl, singleSlugUrl, expansionSlug, urlFromCmRec, bestCmUrl,
   sealedBoosterUrl, boosterBoxUrl,
 } from "./optcg_cmapi.mjs";
+import { cleanRar, limitlessKey, limitlessCodeOf } from "./optcg_rarity_lib.mjs";
 
 const cards = Object.values(JSON.parse(readFileSync("optcg_cards_raw.json", "utf8")));
 const products = Object.values(JSON.parse(readFileSync("optcg_products_raw.json", "utf8")));
@@ -15,6 +16,10 @@ const products = Object.values(JSON.parse(readFileSync("optcg_products_raw.json"
 const loadOpt = p => existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
 const CMMAP = loadOpt("optcg_cmmap.json")?.entries || {};
 const PRICES = loadOpt("optcg_prices.json")?.prices || {};
+const RARITY_DB = loadOpt("optcg_rarity.json") || {};
+const RARITY_ENTRIES = RARITY_DB.entries || {};
+const RARITY_BY_CODE_VER = RARITY_DB.byCodeVer || {};
+const RARITY_BY_CMID = RARITY_DB.byCmId || {};
 const keyOf = (set, code, ver) => `${String(set || "").replace(/-/g, "")}|${code}|${ver || ""}`;
 
 // ---- Storico prezzi REALE (snapshot giornalieri di optcg_history.mjs) ----
@@ -88,23 +93,36 @@ function applyPrices(item, rec, id) {
 // Le DON senza prezzo restano; tutte le altre rarità e box/case non sono filtrati.
 const MIN_PRICE = 1;
 
-// etichette rarità pulite (tutte le carte incluse)
-const RLABEL = {
-  "LEADER": "Leader",
-  "SECRET RARE": "Secret Rare",
-  "Manga Rare": "Manga Rare",
-  "Alternate Art": "Alt-art",
-  "Special Rare": "Special",
-  "SP CARD": "SP",
-  "Treasure Rare": "Treasure Rare",
-  "Promo": "Promo",
-  "SUPER RARE": "Super Rare",
-  "rare": "Rare",
-  "Common": "Common",
-  "Uncommon": "Uncommon",
-  "DON!!": "DON",
+// Rarità per versione: Limitless TCG (allineato a Cardmarket V.n) → optcg_rarity.json.
+// Fallback: tcggo quando le versioni hanno già rarità distinte.
+const codeVerFromUrl = url => {
+  if (!url) return null;
+  const slug = url.match(/Singles\/[^/]+\/([^/?#]+)/i)?.[1];
+  if (!slug) return null;
+  const p = slug.match(/(P-\d+)/i);
+  const op = slug.match(/((?:OP|EB|ST|PRB)\d+-\d+)/i);
+  const code = p ? p[1].toUpperCase() : op ? op[1].toUpperCase() : null;
+  const v = slug.match(/-V(\d+)$/i);
+  return code ? { code, ver: v ? `V.${v[1]}` : null } : null;
 };
-const cleanRar = r => RLABEL[r] || r || "";
+
+const lookupRarity = (code, ver, cmId, lang, url) => {
+  if (cmId != null && RARITY_BY_CMID[String(cmId)]) return RARITY_BY_CMID[String(cmId)];
+  const tryCode = (c, v) => {
+    if (!c) return null;
+    const cv = `${c}|${v || ""}`;
+    if (lang === "JP" && RARITY_BY_CODE_VER[`${cv}|JP`]) return RARITY_BY_CODE_VER[`${cv}|JP`];
+    if (RARITY_BY_CODE_VER[cv]) return RARITY_BY_CODE_VER[cv];
+    const lk = limitlessKey(c, v, lang);
+    if (RARITY_ENTRIES[lk]) return RARITY_ENTRIES[lk];
+    return null;
+  };
+  let r = tryCode(code, ver);
+  if (r) return r;
+  const fromUrl = codeVerFromUrl(url);
+  if (fromUrl) r = tryCode(fromUrl.code, fromUrl.ver ?? ver);
+  return r;
+};
 
 const normSet = s => (s || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase(); // "OP-16"->"OP16"
 
@@ -173,7 +191,15 @@ for (const c of cards) {
   keptCards.push({ c, price });
 }
 
-// pass 2: per ogni set|code, pool JP a livello di CODE e assegnazione ver/rarity
+const rarityOfCard = c => {
+  const lang = isJP(c) ? "JP" : "EN";
+  const lk = limitlessCodeOf(c) || c.code;
+  return lookupRarity(lk, c.version, c.cm_id, lang)
+    || lookupRarity(c.code, c.version, c.cm_id, lang)
+    || cleanRar(c.rarity);
+};
+
+// pass 2: gemelli JP — ver dal nome prodotto JP; rarità dalla versione EN omologa (V.n)
 const jpTwinInfo = new Map(); // jp_id -> { ver, rarity }
 {
   const byCodeGroup = new Map();
@@ -184,12 +210,12 @@ const jpTwinInfo = new Map(); // jp_id -> { ver, rarity }
   }
   for (const group of byCodeGroup.values()) {
     const code = group[0].c.code;
-    const enVers = group.map(({ c, price }) => {
+    const enVers = group.filter(({ c }) => !isJP(c)).map(({ c, price }) => {
       const mapEntry = CMMAP[keyOf(c.set, c.code, c.version)];
       const enId = c.cm_id != null ? String(c.cm_id) : mapEntry?.en_id;
       let rec = enId ? PRICES[enId] : null;
       if (!recCodeOk(rec, code)) rec = null;
-      return { ver: c.version || null, rarity: cleanRar(c.rarity), price: refPrice(rec) ?? price };
+      return { ver: c.version || null, rarity: rarityOfCard(c), price: refPrice(rec) ?? price };
     });
     const seenJp = new Set();
     const jps = [];
@@ -202,41 +228,25 @@ const jpTwinInfo = new Map(); // jp_id -> { ver, rarity }
       jps.push({ id: jpId, ver: parseVerFromName(rec.name), price: refPrice(rec) });
     }
     if (!jps.length) continue;
-    if (enVers.length === 1 && jps.length === 1) { // corrispondenza diretta, nessuna ambiguità
+    for (const j of jps) {
+      const byId = RARITY_BY_CMID[j.id];
+      if (byId) { jpTwinInfo.set(j.id, { ver: j.ver, rarity: byId }); continue; }
+      const en = enVers.find(e => e.ver === j.ver);
+      if (en) jpTwinInfo.set(j.id, { ver: j.ver, rarity: en.rarity });
+    }
+    if (enVers.length === 1 && jps.length === 1 && !jpTwinInfo.has(jps[0].id)) {
       jpTwinInfo.set(jps[0].id, { ver: jps[0].ver ?? enVers[0].ver, rarity: enVers[0].rarity });
       continue;
     }
-    const enPool = enVers.map(e => ({ ...e, used: false }));
-    // (a) stessi conteggi e tutti prezzati -> match per rango di prezzo
-    if (jps.length === enPool.length && jps.every(j => j.price > 0) && enPool.every(e => e.price > 0)) {
-      const enByPrice = enPool.slice().sort((a, b) => a.price - b.price);
-      const jpByPrice = jps.slice().sort((a, b) => a.price - b.price);
+    const still = jps.filter(j => !jpTwinInfo.has(j.id));
+    if (still.length && still.length === enVers.length && still.every(j => j.price > 0) && enVers.every(e => e.price > 0)) {
+      const enByPrice = enVers.slice().sort((a, b) => a.price - b.price);
+      const jpByPrice = still.slice().sort((a, b) => a.price - b.price);
       jpByPrice.forEach((j, i) => jpTwinInfo.set(j.id, { ver: j.ver, rarity: enByPrice[i].rarity }));
       continue;
     }
-    // (b) JP V.1/V.2 -> versione EN omologa (posizioni base/alt-art coincidenti)
-    const rest = [];
-    for (const j of jps) {
-      const vn = j.ver ? Number(j.ver.replace(/\D/g, "")) : null;
-      const en = (vn === 1 || vn === 2) ? enPool.find(e => !e.used && e.ver === j.ver) : null;
-      if (en) { en.used = true; jpTwinInfo.set(j.id, { ver: j.ver, rarity: en.rarity }); }
-      else rest.push(j);
-    }
-    // (c) nearest-neighbor greedy in log-prezzo, dal JP più caro
-    const MAX_LOG_DIST = Math.log(12);
-    for (const j of rest.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))) {
-      let best = null, bestD = Infinity;
-      if (j.price > 0) for (const en of enPool) {
-        if (en.used || !(en.price > 0)) continue;
-        const d = Math.abs(Math.log(j.price / en.price));
-        if (d < bestD) { bestD = d; best = en; }
-      }
-      if (best && bestD <= MAX_LOG_DIST) {
-        best.used = true;
-        jpTwinInfo.set(j.id, { ver: j.ver, rarity: best.rarity });
-      } else {
-        jpTwinInfo.set(j.id, { ver: j.ver, rarity: "" }); // meglio vuota che sbagliata
-      }
+    for (const j of still) {
+      if (!jpTwinInfo.has(j.id)) jpTwinInfo.set(j.id, { ver: j.ver, rarity: "" });
     }
   }
 }
@@ -254,7 +264,7 @@ for (const { c, price } of keptCards) {
     ver: c.version || null,     // distingue le versioni della stessa carta
     char: c.name,
     type: "Carta",
-    rarity: cleanRar(c.rarity),
+    rarity: rarityOfCard(c),
     lang: jp ? "JP" : "EN",
     cm: price,
     t30: cm.a30 ?? null,
@@ -279,6 +289,11 @@ for (const { c, price } of keptCards) {
   let enRec = enId ? PRICES[enId] : null;
   if (!codeMatches(enRec)) enRec = null;
   if (applyPrices(item, enRec, enId)) pricedEN++;
+  if (enId && RARITY_BY_CMID[enId]) item.rarity = RARITY_BY_CMID[enId];
+  else {
+    const urlRarity = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url);
+    if (urlRarity) item.rarity = urlRarity;
+  }
   items.push(item);
   singles++;
 
@@ -305,6 +320,11 @@ for (const { c, price } of keptCards) {
       cmId: Number(mapEntry.jp_id) || null,
     };
     applyPrices(jpItem, PRICES[mapEntry.jp_id], mapEntry.jp_id);
+    if (jpItem.cmId && RARITY_BY_CMID[String(jpItem.cmId)]) jpItem.rarity = RARITY_BY_CMID[String(jpItem.cmId)];
+    else {
+      const jpUrlRarity = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url);
+      if (jpUrlRarity) jpItem.rarity = jpUrlRarity;
+    }
     if (jpItem.cm != null) {
       jpItem.target = Math.round(jpItem.cm);
       items.push(jpItem);
@@ -377,8 +397,8 @@ for (const e of Object.values(CMMAP)) {
 }
 
 const header = `// Generato automaticamente da optcg_catalog.mjs — NON modificare a mano.
-// Fonte catalogo: cardmarket-api-tcg (RapidAPI). Prezzi: cardmarketapi.com (EUR, EN/JP
-// distinti) per gli item già mappati; placeholder tcggo per il resto.
+// Fonte catalogo: cardmarket-api-tcg (RapidAPI). Rarità: Limitless TCG → optcg_rarity.json.
+// Prezzi: cardmarketapi.com (EUR, EN/JP distinti) per gli item già mappati; placeholder tcggo per il resto.
 // Solo le DON con prezzo noto sotto €1 sono escluse (tutte le altre rarità restano).\n`;
 writeFileSync("catalog.js", header + "window.CATALOG_ITEMS = " + JSON.stringify(items) + ";\n");
 
