@@ -3,6 +3,9 @@
 // FASE 2: fonde optcg_cmmap.json (id prodotto Cardmarket) + optcg_prices.json (prezzi
 // cardmarketapi.com EN/JP in EUR) — i prezzi API sovrascrivono i placeholder tcggo.
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import {
+  cmIdUrl, cmSearchUrl, singleSlugUrl, expansionSlug,
+} from "./optcg_cmapi.mjs";
 
 const cards = Object.values(JSON.parse(readFileSync("optcg_cards_raw.json", "utf8")));
 const products = Object.values(JSON.parse(readFileSync("optcg_products_raw.json", "utf8")));
@@ -75,6 +78,8 @@ function applyPrices(item, rec, id) {
   if (t7 != null) item.t7 = t7;
   if (t14 != null) item.t14 = t14;
   if (t30 != null) item.t30 = t30; else if (item.t30 == null && rec.avg30 != null) item.t30 = rec.avg30;
+  // idProduct batte lo slug: zero redirect "Invalid product!" su Cardmarket
+  if (id) item.url = cmIdUrl(id, item.type);
   return true;
 }
 
@@ -102,47 +107,6 @@ const cleanRar = r => RLABEL[r] || r || "";
 
 const normSet = s => (s || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase(); // "OP-16"->"OP16"
 
-// URL Cardmarket generico (fallback: pagina di ricerca per query).
-const cmUrl = q => `https://www.cardmarket.com/en/OnePiece/Products/Search?searchString=${encodeURIComponent(q)}`;
-
-// Parole "stop" che Cardmarket scrive in minuscolo NELLO slug dell'espansione,
-// tranne quando sono la PRIMA parola (es. "The Azure...", "A Fist...").
-// Calibrato su URL reali verificati (Carrying-on-his-Will, Emperors-in-the-New-World,
-// Pillars-of-Strength, Adventure-on-Kamis-Island, 500-Years-in-the-Future, ...).
-const CM_STOPWORDS = new Set(["on", "of", "in", "the", "his", "her", "and", "a", "an", "to"]);
-
-// Slug del NOME carta: rimuove tutti i non alfanumerici, mantiene le maiuscole originali.
-// "Portgas.D.Ace" / "Portgas D. Ace" -> "PortgasDAce"; "Monkey D. Luffy" -> "MonkeyDLuffy".
-const nameSlug = name => (name || "").replace(/[^A-Za-z0-9]/g, "");
-
-// Slug dell'ESPANSIONE: divide su spazi E trattini, rimuove la punteggiatura di ogni
-// parola, mette in minuscolo le stopword (tranne la prima parola) e unisce con "-".
-// "Carrying on His Will" -> "Carrying-on-his-Will"; "The Azure Sea's Seven" -> "The-Azure-Seas-Seven".
-// Lo split sui trattini preserva i marker JP: "Carrying on his Will (Non-English)"
-// -> "Carrying-on-his-Will-Non-English" (lo slug reale Cardmarket, verificato — la
-// vecchia pulizia per-parola collassava "Non-English" in "NonEnglish" => "invalid expansion").
-const expansionSlug = setName => (setName || "")
-  .trim()
-  .split(/[\s-]+/)
-  .map((w, i) => {
-    const clean = w.replace(/[^A-Za-z0-9]/g, "");
-    if (!clean) return "";
-    return (i > 0 && CM_STOPWORDS.has(clean.toLowerCase())) ? clean.toLowerCase() : clean;
-  })
-  .filter(Boolean)
-  .join("-");
-
-// URL specifico di una SINGOLA su Cardmarket:
-// .../Singles/{EXPANSION_SLUG}/{NAME_SLUG}-{CODE}[-V{n}]
-// Se manca setName, fallback alla vecchia ricerca per code.
-const singleUrl = (setName, name, code, version) => {
-  const exp = expansionSlug(setName);
-  if (!exp) return cmUrl(code);
-  const nm = nameSlug(name);
-  const ver = version ? "-V" + String(version).replace(/\D/g, "") : "";
-  return `https://www.cardmarket.com/en/OnePiece/Products/Singles/${exp}/${nm}-${code}${ver}`;
-};
-
 // URL della BOOSTER BOX: .../Booster-Boxes/{EXPANSION_SLUG}-Booster-Box
 const boxUrl = setName => {
   const exp = expansionSlug(setName);
@@ -165,7 +129,7 @@ const isJP = c => /(-JP\b|\bJP\b)/i.test(c.ccn || "") || /(-JP\b|\bJP\b)/i.test(
 // Fallback: setName + " (Non-English)"; senza nulla, ricerca per code.
 const jpSingleUrl = (jpExpansion, setName, name, code, version) => {
   const exp = jpExpansion || (setName ? setName + " (Non-English)" : null);
-  return exp ? singleUrl(exp, name, code, version) : cmUrl(code);
+  return exp ? singleSlugUrl(exp, name, code, version) : cmSearchUrl(code);
 };
 
 // ---- Risoluzione versione/rarità dei GEMELLI JP (per code, non per versione EN) ----
@@ -306,7 +270,7 @@ for (const { c, price } of keptCards) {
     ebay: null,
     target: price != null ? Math.round(price) : 0,
     note: `${c.setName || ""}${c.version ? " · " + c.version : ""}`.trim(),
-    url: singleUrl(c.setName, c.name, c.code, c.version),
+    url: c.cm_id ? cmIdUrl(c.cm_id, "Carta") : singleSlugUrl(c.setName, c.name, c.code, c.version),
     img: c.image || null,
     err: false,
     cmId: c.cm_id || null,
@@ -341,7 +305,7 @@ for (const { c, price } of keptCards) {
       cm: null, t30: null, t14: null, t7: null, target: 0,
       trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
       note: `${c.setName || ""} (JP)${jpInfo.ver ? " · " + jpInfo.ver : ""}`.trim(),
-      url: jpSingleUrl(jpRec.expansion, c.setName, c.name, c.code, jpInfo.ver),
+      url: mapEntry.jp_id ? cmIdUrl(mapEntry.jp_id, "Carta") : jpSingleUrl(jpRec.expansion, c.setName, c.name, c.code, jpInfo.ver),
       // immagine del prodotto GIAPPONESE (grafica JP), non quella EN riciclata:
       // l'URL immagine di cardmarketapi è pubblico e deterministico per product id
       img: jpRec.image_url || `https://cardmarketapi.com/cards/${mapEntry.jp_id}/image`,
@@ -377,7 +341,8 @@ for (const p of products) {
     target: p.cm_low != null ? Math.round(p.cm_low) : 0,
     note: p.setName || "",
     // Box: pagina canonica Booster-Boxes. Case: nessuna pagina pulita, resta la ricerca.
-    url: isBox ? (boxUrl(p.setName) || cmUrl(name)) : cmUrl(name),
+    url: p.cm_id ? cmIdUrl(p.cm_id, isCase ? "Case" : "Box")
+      : (isBox ? (boxUrl(p.setName) || cmSearchUrl(name)) : cmSearchUrl(name)),
     img: p.image || null,
     err: false,
     cmId: p.cm_id || null,
@@ -407,7 +372,7 @@ for (const e of Object.values(CMMAP)) {
     cm: null, t30: null, t14: null, t7: null, ebay: null,
     target: e.target ?? 0,
     note: e.note || "",
-    url: e.url || null,
+    url: cmIdUrl(e.en_id, "Carta") || e.url || null,
     img: `https://cardmarketapi.com/cards/${e.en_id}/image`,
     err: false,
     cmId: Number(e.en_id) || null,

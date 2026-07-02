@@ -178,3 +178,56 @@ export const parseVerFromName = name => {
   return m ? "V." + m[1] : null;
 };
 export const verNum = v => v ? Number(String(v).replace(/\D/g, "")) : null;
+
+// ---- URL Cardmarket ----
+// idProduct è il link più affidabile: non dipende dallo slug (Tony-TonyChopper vs TonyTonyChopper).
+export const cmCategory = type => (type === "Box" || type === "Case") ? "Booster-Boxes" : "Singles";
+export const cmIdUrl = (id, type = "Carta") =>
+  id ? `https://www.cardmarket.com/en/OnePiece/Products/${cmCategory(type)}?idProduct=${id}` : null;
+export const cmSearchUrl = q =>
+  `https://www.cardmarket.com/en/OnePiece/Products/Search?searchString=${encodeURIComponent(q)}`;
+
+const CM_STOPWORDS = new Set(["on", "of", "in", "the", "his", "her", "and", "a", "an", "to"]);
+
+export const nameSlug = name => (name || "")
+  .trim()
+  .split(/\s+/)
+  .map(w => w.replace(/[^A-Za-z0-9-]/g, ""))
+  .filter(Boolean)
+  .join("-");
+
+export const expansionSlug = setName => (setName || "")
+  .trim()
+  .split(/[\s-]+/)
+  .map((w, i) => {
+    const clean = w.replace(/[^A-Za-z0-9]/g, "");
+    if (!clean) return "";
+    return (i > 0 && CM_STOPWORDS.has(clean.toLowerCase())) ? clean.toLowerCase() : clean;
+  })
+  .filter(Boolean)
+  .join("-");
+
+export const singleSlugUrl = (setName, name, code, version) => {
+  const exp = expansionSlug(setName);
+  if (!exp) return cmSearchUrl(code);
+  const nm = nameSlug(name);
+  const ver = version ? "-V" + String(version).replace(/\D/g, "") : "";
+  return `https://www.cardmarket.com/en/OnePiece/Products/Singles/${exp}/${nm}-${code}${ver}`;
+};
+
+export const parseCmProductName = raw => {
+  if (!raw) return null;
+  let s = raw.trim();
+  let ver = null;
+  const verM = s.match(/\s*\(V\.(\d+)\)\s*$/i);
+  if (verM) { ver = `V.${verM[1]}`; s = s.slice(0, verM.index).trim(); }
+  const codeM = s.match(/^(.+?)\s*\(([A-Za-z0-9-]+)\)\s*$/);
+  if (!codeM) return null;
+  return { name: codeM[1].trim(), code: codeM[2], ver };
+};
+
+export const urlFromCmRec = rec => {
+  const p = parseCmProductName(rec?.name);
+  if (!p || !rec?.expansion) return null;
+  return singleSlugUrl(rec.expansion, p.name, p.code, p.ver);
+};

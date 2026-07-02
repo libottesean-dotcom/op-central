@@ -41,6 +41,7 @@ jobs:
           node optcg_history.mjs
           node optcg_history_db.mjs
           node optcg_catalog.mjs
+          node optcg_urls.mjs
           node optcg_telegram.mjs
 
       - name: Pubblica catalog.js

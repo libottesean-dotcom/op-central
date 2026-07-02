@@ -79,5 +79,13 @@ for (const it of ITEMS) {
 }
 ok(dup === 0, `nessun doppione inatteso wlKey+lang (${dup})`);
 
+// 6) link Cardmarket: ogni voce con cmId deve usare idProduct
+let urlBad = 0;
+for (const it of ITEMS) {
+  if (!it.url) { urlBad++; continue; }
+  if (it.cmId && !it.url.includes(`idProduct=${it.cmId}`)) urlBad++;
+}
+ok(urlBad === 0, `link Cardmarket idProduct ok (${ITEMS.length - urlBad}/${ITEMS.length})`);
+
 console.log(fail ? `\n${fail} CONTROLLI FALLITI` : "\nTUTTI I CONTROLLI PASSATI");
 process.exit(fail ? 1 : 0);

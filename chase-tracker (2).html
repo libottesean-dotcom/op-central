@@ -29,6 +29,7 @@
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
+  html.no-scroll, html.no-scroll body { overflow: hidden; height: 100%; }
   body {
     background: var(--obsidian);
     color: var(--porcelain);
@@ -779,6 +780,8 @@
     background: rgba(6,7,9,0.72); backdrop-filter: blur(6px);
     display: none; align-items: flex-start; justify-content: center;
     padding: 40px 20px; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   .cd-overlay.open { display: flex; }
   .cd-modal {
@@ -786,7 +789,7 @@
     background: linear-gradient(180deg, var(--obsidian-2), var(--panel));
     border: 1px solid var(--line); border-radius: 20px;
     box-shadow: 0 30px 90px rgba(0,0,0,0.6);
-    overflow: hidden; position: relative;
+    overflow: visible; position: relative;
     animation: cdIn 0.22s cubic-bezier(0.2,0.7,0.3,1);
   }
   @keyframes cdIn { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
@@ -878,8 +881,28 @@
   .cd-foot a.cm-link:hover { background: var(--gold-soft); }
   .cd-clickable { cursor: pointer; }
   @media (max-width: 760px) {
-    .cd-overlay { padding: 0; align-items: stretch; }
-    .cd-modal { border-radius: 0; min-height: 100dvh; max-width: none; }
+    .cd-overlay {
+      padding: 0;
+      align-items: stretch;
+      overflow-y: scroll;
+      overflow-x: hidden;
+      touch-action: pan-y;
+    }
+    .cd-overlay.open { display: block; }
+    .cd-modal {
+      border-radius: 0; max-width: none;
+      min-height: 100dvh;
+      min-height: 100svh;
+      height: auto;
+      overflow: visible;
+      padding-bottom: max(28px, env(safe-area-inset-bottom));
+    }
+    .cd-close {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      right: 10px;
+      z-index: 102;
+    }
     .cd-grid { grid-template-columns: 1fr; }
     .cd-left {
       flex-direction: column; align-items: stretch;
@@ -1166,6 +1189,18 @@
   const fmt2 = n => "€" + Number(n).toLocaleString("it-IT", { maximumFractionDigits: 0 });
   // guadagno/perdita con segno (2 decimali sotto €100, interi sopra)
   const fmtPl = n => (n >= 0 ? "+" : "−") + "€" + Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 });
+
+  // Link Cardmarket: idProduct quando c'è cmId (affidabile al 100%), altrimenti slug dal catalogo
+  const cmLink = it => {
+    if (!it) return "";
+    if (it.cmId) {
+      const cat = (it.type === "Box" || it.type === "Case") ? "Booster-Boxes" : "Singles";
+      return `https://www.cardmarket.com/en/OnePiece/Products/${cat}?idProduct=${it.cmId}`;
+    }
+    return it.url || "";
+  };
+
+  let cdScrollY = 0;
 
   // serie storica reale (snapshot giornalieri in catalog.js): usata da sparkline e
   // grafico scheda quando ha almeno 2 punti, altrimenti si ricade sul sintetico
@@ -1608,7 +1643,7 @@
             <button class="act coll ${b === 'coll' ? 'on' : ''}" data-act="coll" data-i="${i}" title="Nella collezione">✓</button>
             <button class="act watch ${b === 'watch' ? 'on' : ''}" data-act="watch" data-i="${i}" title="In watchlist">♥</button>
           </div>
-          <a class="pcard-link" href="${it.url}" target="_blank" rel="noopener">Apri ↗</a>
+          <a class="pcard-link" href="${cmLink(it)}" target="_blank" rel="noopener">Apri ↗</a>
         </div>
       </div>
     </div>`;
@@ -1943,7 +1978,7 @@
         <td class="wrap-note"><span class="dim" style="font-size:11px">${it.note || '—'}</span></td>
         <td class="center">
           <div class="link-cell">
-            <a class="box-link" href="${it.url}" target="_blank" rel="noopener">Apri ↗</a>
+            <a class="box-link" href="${cmLink(it)}" target="_blank" rel="noopener">Apri ↗</a>
             <button class="wrm" data-rm="${i}" title="Rimuovi dalla watchlist">✕</button>
           </div>
         </td>
@@ -2320,7 +2355,7 @@
         </div>
         <div class="cd-foot">
           <span class="src">${fetched ? "aggiornato il " + fetched : "prezzi Cardmarket EU · in euro"}</span>
-          ${it.url ? `<a class="cm-link" href="${it.url}" target="_blank" rel="noopener">Apri su Cardmarket ↗</a>` : ""}
+          ${cmLink(it) ? `<a class="cm-link" href="${cmLink(it)}" target="_blank" rel="noopener">Apri su Cardmarket ↗</a>` : ""}
         </div>
       </div>`;
   }
@@ -2330,12 +2365,16 @@
     if (!it) return;
     cdCurrent = idx;
     renderCardDetail(it);
-    document.getElementById("cd-overlay").classList.add("open");
-    document.body.style.overflow = "hidden";
+    cdScrollY = window.scrollY;
+    const overlay = document.getElementById("cd-overlay");
+    overlay.scrollTop = 0;
+    overlay.classList.add("open");
+    document.documentElement.classList.add("no-scroll");
   }
   function closeCard() {
     document.getElementById("cd-overlay").classList.remove("open");
-    document.body.style.overflow = "";
+    document.documentElement.classList.remove("no-scroll");
+    window.scrollTo(0, cdScrollY);
     cdCurrent = null;
   }
 
