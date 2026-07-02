@@ -1,7 +1,6 @@
 // Config client OP Central — progetto op-command-deck
 window.OPC_CONFIG = {
   supabaseUrl: "https://pozrwrigqusihofeydux.supabase.co",
-  // Locale: sync sulla stessa macchina. Produzione Render: vedi syncUrlProd sotto.
   syncUrlProd: "https://op-central-sync.onrender.com",
   get syncUrl() {
     const h = typeof location !== "undefined" ? location.hostname : "";
@@ -10,7 +9,12 @@ window.OPC_CONFIG = {
     return window.OPC_CONFIG.syncUrlProd || `http://${h}:8778`;
   },
   auth: {
+    // Email precompilata in produzione; password NON nel client (login manuale)
     email: "opcentral@deck.local",
-    password: "OPCentral2026!",
+    get password() {
+      const h = typeof location !== "undefined" ? location.hostname : "";
+      if (h === "localhost" || h === "127.0.0.1") return "OPCentral2026!";
+      return "";
+    },
   },
 };
