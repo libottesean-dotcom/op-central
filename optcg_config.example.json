@@ -1,0 +1,20 @@
+{
+  "cardmarketapi": {
+    "base_url": "https://cardmarketapi.com",
+    "api_key": "INSERISCI_API_KEY",
+    "plan": "starter",
+    "daily_limit": 2000
+  },
+  "budget": {
+    "hard_cap_date": "",
+    "hard_cap_today": 0,
+    "daily_cap": 1950,
+    "map_reserve": 500
+  },
+  "telegram": {
+    "enabled": false,
+    "bot_token": "",
+    "chat_id": "",
+    "threshold_pct": 10
+  }
+}

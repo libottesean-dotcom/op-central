@@ -1,0 +1,51 @@
+name: OP Central — aggiornamento giornaliero
+
+on:
+  schedule:
+    # 05:30 ora di Roma (CEST = UTC+2) → 03:30 UTC
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install postgres driver
+        run: npm install postgres@3.4.9 --no-save
+
+      - name: Configura API key Cardmarket
+        run: |
+          cp optcg_config.example.json optcg_config.json
+          node -e "
+          const fs=require('fs');
+          const cfg=JSON.parse(fs.readFileSync('optcg_config.json','utf8'));
+          cfg.cardmarketapi.api_key=process.env.CARDMARKET_API_KEY;
+          fs.writeFileSync('optcg_config.json',JSON.stringify(cfg,null,2));
+          "
+        env:
+          CARDMARKET_API_KEY: ${{ secrets.CARDMARKET_API_KEY }}
+
+      - name: Pipeline dati
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          node optcg_build.mjs
+          node optcg_map.mjs
+          node optcg_prices.mjs
+          node optcg_history.mjs
+          node optcg_history_db.mjs
+          node optcg_catalog.mjs
+          node optcg_telegram.mjs
+
+      - name: Pubblica catalog.js
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-js
+          path: catalog.js
+          retention-days: 7

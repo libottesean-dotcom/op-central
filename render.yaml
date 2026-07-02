@@ -1,0 +1,19 @@
+# Deploy sync server OP Central su Render (https://render.com)
+# 1. Crea Web Service da questo repo
+# 2. Aggiungi env DATABASE_URL (da op-command-deck Supabase)
+# 3. Aggiorna opc-config.js syncUrl con l'URL Render (es. https://op-central-sync.onrender.com)
+
+services:
+  - type: web
+    name: op-central-sync
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node optcg_sync_server.mjs
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PORT
+        value: 10000
+      - key: HOST
+        value: 0.0.0.0

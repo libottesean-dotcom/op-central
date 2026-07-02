@@ -1,0 +1,21 @@
+# OP Central — solo file del progetto
+*
+!.gitignore
+!optcg*
+!chase-tracker*
+!catalog.js
+!logo.png
+!manifest.json
+!sw.js
+!opc-config.js
+!package.json
+!PIANO.md
+!render.yaml
+!optcg_start.bat
+!.github/
+!optcg_history/
+!optcg_config.example.json
+optcg_config.json
+optcg_daily.log
+*.tmp
+node_modules/

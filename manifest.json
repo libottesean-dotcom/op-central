@@ -1,0 +1,13 @@
+{
+  "name": "OP Central",
+  "short_name": "OP Central",
+  "description": "One Piece TCG — mercato, watchlist e collezione",
+  "start_url": "./chase-tracker%20(2).html",
+  "display": "standalone",
+  "background_color": "#0a0b0d",
+  "theme_color": "#0a0b0d",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
