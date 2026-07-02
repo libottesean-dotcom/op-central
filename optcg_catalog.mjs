@@ -5,6 +5,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import {
   cmSearchUrl, singleSlugUrl, expansionSlug, urlFromCmRec, bestCmUrl,
+  sealedBoosterUrl, boosterBoxUrl,
 } from "./optcg_cmapi.mjs";
 
 const cards = Object.values(JSON.parse(readFileSync("optcg_cards_raw.json", "utf8")));
@@ -78,7 +79,7 @@ function applyPrices(item, rec, id) {
   if (t7 != null) item.t7 = t7;
   if (t14 != null) item.t14 = t14;
   if (t30 != null) item.t30 = t30; else if (item.t30 == null && rec.avg30 != null) item.t30 = rec.avg30;
-  const apiUrl = urlFromCmRec(rec);
+  const apiUrl = urlFromCmRec(rec, item.note || null);
   if (apiUrl) item.url = apiUrl;
   return true;
 }
@@ -106,14 +107,6 @@ const RLABEL = {
 const cleanRar = r => RLABEL[r] || r || "";
 
 const normSet = s => (s || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase(); // "OP-16"->"OP16"
-
-// URL della BOOSTER BOX: .../Booster-Boxes/{EXPANSION_SLUG}-Booster-Box
-const boxUrl = setName => {
-  const exp = expansionSlug(setName);
-  return exp
-    ? `https://www.cardmarket.com/en/OnePiece/Products/Booster-Boxes/${exp}-Booster-Box`
-    : null;
-};
 
 const items = [];
 
@@ -340,8 +333,10 @@ for (const p of products) {
     ebay: null,
     target: p.cm_low != null ? Math.round(p.cm_low) : 0,
     note: p.setName || "",
-    // Box: pagina canonica Booster-Boxes. Case: nessuna pagina pulita, resta la ricerca.
-    url: isBox ? (boxUrl(p.setName) || cmSearchUrl(name)) : cmSearchUrl(name),
+    // Box/Case: pagina diretta Booster-Boxes (slug dal nome prodotto API quando disponibile).
+    url: isBox
+      ? (boosterBoxUrl(p.setName) || sealedBoosterUrl(name, p.setName) || cmSearchUrl(name))
+      : (sealedBoosterUrl(name, p.setName) || cmSearchUrl(name)),
     img: p.image || null,
     err: false,
     cmId: p.cm_id || null,

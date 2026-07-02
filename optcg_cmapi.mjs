@@ -213,6 +213,28 @@ export const singleSlugUrl = (setName, name, code, version) => {
   return `https://www.cardmarket.com/en/OnePiece/Products/Singles/${exp}/${nm}-${code}${ver}`;
 };
 
+const CM_BOOSTER_BOXES = "https://www.cardmarket.com/en/OnePiece/Products/Booster-Boxes";
+
+// Corregge nomi tcggo errati prima di costruire lo slug sealed.
+export const normalizeSealedName = (productName, setName) => {
+  let n = (productName || "").trim();
+  if (/Azure's Sea Seven/i.test(n) && setName) n = n.replace(/The Azure's Sea Seven/i, setName);
+  // Cardmarket: "Vol.2" -> "Vol-2" nello slug (The-Best-Vol-2-...)
+  n = n.replace(/\bVol\.(\d+)\b/g, "Vol-$1");
+  return n;
+};
+
+// Case / altri sealed sotto Booster-Boxes: slug dal nome prodotto Cardmarket.
+export const sealedBoosterUrl = (productName, setName) => {
+  const slug = nameSlug(normalizeSealedName(productName, setName));
+  return slug ? `${CM_BOOSTER_BOXES}/${slug}` : null;
+};
+
+export const boosterBoxUrl = setName => {
+  const exp = expansionSlug(setName);
+  return exp ? `${CM_BOOSTER_BOXES}/${exp}-Booster-Box` : null;
+};
+
 export const parseCmProductName = raw => {
   if (!raw) return null;
   let s = raw.trim();
@@ -224,10 +246,12 @@ export const parseCmProductName = raw => {
   return { name: codeM[1].trim(), code: codeM[2], ver };
 };
 
-export const urlFromCmRec = rec => {
+export const urlFromCmRec = (rec, setName) => {
   const p = parseCmProductName(rec?.name);
-  if (!p || !rec?.expansion) return null;
-  return singleSlugUrl(rec.expansion, p.name, p.code, p.ver);
+  if (p && rec?.expansion) return singleSlugUrl(rec.expansion, p.name, p.code, p.ver);
+  if (rec?.name && /case|booster box|sleeved booster pack case/i.test(rec.name))
+    return sealedBoosterUrl(rec.name, setName || rec.expansion);
+  return null;
 };
 
-export const bestCmUrl = (rec, fallback) => urlFromCmRec(rec) || fallback || null;
+export const bestCmUrl = (rec, fallback, setName) => urlFromCmRec(rec, setName) || fallback || null;

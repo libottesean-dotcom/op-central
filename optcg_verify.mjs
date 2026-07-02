@@ -86,6 +86,9 @@ for (const it of ITEMS) {
   if (/[?&]idProduct=\d+/.test(it.url) && !/\/Singles\/[^/?]+-/.test(it.url)) urlBad++;
 }
 ok(urlBad === 0, `link Cardmarket slug ok (${ITEMS.length - urlBad}/${ITEMS.length})`);
+const caseSearch = ITEMS.filter(it => it.type === "Case" && /Products\/Search/i.test(it.url || ""));
+ok(caseSearch.length === 0, `case senza link ricerca (${caseSearch.length} search fallback)`);
+if (case5) ok(!/Products\/Search/i.test(case5.url || ""), `OP05 Case link diretto: ${case5.url}`);
 
 console.log(fail ? `\n${fail} CONTROLLI FALLITI` : "\nTUTTI I CONTROLLI PASSATI");
 process.exit(fail ? 1 : 0);

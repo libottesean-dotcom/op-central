@@ -1,6 +1,6 @@
 // Audit link Cardmarket di ogni voce in catalog.js.
 import { readFileSync, existsSync } from "node:fs";
-import { urlFromCmRec } from "./optcg_cmapi.mjs";
+import { urlFromCmRec, sealedBoosterUrl, boosterBoxUrl } from "./optcg_cmapi.mjs";
 
 const src = readFileSync("catalog.js", "utf8");
 const window = {};
@@ -16,7 +16,9 @@ const issues = [];
 for (const it of ITEMS) {
   const id = it.cmId != null ? String(it.cmId) : null;
   const rec = id ? PRICES[id] : null;
-  const expected = rec ? urlFromCmRec(rec) : null;
+  const expected = rec
+    ? urlFromCmRec(rec, it.note || null)
+    : (it.type === "Box" ? boosterBoxUrl(it.note) : it.type === "Case" ? sealedBoosterUrl(it.char, it.note) : null);
 
   if (!it.url) {
     fail++;
@@ -31,9 +33,10 @@ for (const it of ITEMS) {
   }
 
   if (/Products\/Search/i.test(it.url)) {
-    warn++;
-    issues.push({ level: "WARN", char: it.char, reason: "fallback ricerca", url: it.url });
-    ok++;
+    const level = (it.type === "Case" || it.type === "Box") ? "FAIL" : "WARN";
+    if (level === "FAIL") fail++; else warn++;
+    issues.push({ level, char: it.char, reason: "fallback ricerca", url: it.url });
+    if (level === "WARN") ok++;
     continue;
   }
 
