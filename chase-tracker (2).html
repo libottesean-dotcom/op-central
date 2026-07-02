@@ -1635,7 +1635,7 @@
     return g * 1000 + num;
   };
   // Ordine ufficiale per scarsità reale (dalla più rara): Manga > Treasure > SP/Special > Secret > Alt-art > Super Rare > Leader > Rare > Promo > DON
-  const RAR_ORDER = ["Manga Rare", "Treasure Rare", "SP", "Special", "Secret Rare", "Alt-art", "Super Rare", "Leader", "Rare", "Promo", "DON"];
+  const RAR_ORDER = ["Manga Rare", "Treasure Rare", "SP", "Special Rare", "Secret Rare", "Alt-art", "Super Rare", "Leader", "Rare", "Promo", "DON"];
   const rarRank = r => { const i = RAR_ORDER.indexOf(r); return i === -1 ? 999 : i; };
   function populateFilters() {
     const sets = [...new Set(ITEMS.map(it => it.set))].sort((a, b) => setRank(a) - setRank(b) || a.localeCompare(b));
