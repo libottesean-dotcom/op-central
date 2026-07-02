@@ -13,6 +13,7 @@
 !render.yaml
 !optcg_start.bat
 !.github/
+!.github/**
 !optcg_history/
 !optcg_config.example.json
 optcg_config.json

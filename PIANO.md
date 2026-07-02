@@ -34,9 +34,9 @@
 | Voce | Valore |
 |---|---|
 | Carte scaricate (grezze tcggo) | **1600 / 4273** (riprende da pagina 2/214) |
-| Voci in `catalog.js` | **938** = 822 Carte + 56 voci JP + 24 Box + 30 Case + 6 extra watchlist (ora nel catalogo coi prezzi API) |
-| Mapping id Cardmarket | 815/873 entries con id EN (806 GRATIS dal `cm_id` tcggo) · 86 id JP trovati |
-| Prezzi API scaricati oggi | 655 prodotti (595 EN + 60 JP) · richieste: 1430/2000 |
+| Voci in `catalog.js` | **1148** = 979 singole (+109 JP) + 24 Box + 30 Case + 6 extra |
+| Mapping id Cardmarket | 823/881 entries con id EN · 110 id JP |
+| Prezzi API | **895** prodotti in cache · oggi 1729/2000 richieste usate |
 | Set presenti | OP01–OP17, EB01/02/03/05, PRB01/02, P-041/P-110 (Starter Deck ST esclusi) |
 | Stima a catalogo completo | ~1.800–2.000 voci |
 | Dimensione `chase-tracker (2).html` | **~92 KB** (era 662 KB: rimossi base64 + fallback in FASE 3) |
