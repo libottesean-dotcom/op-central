@@ -1,15 +1,8 @@
 // Carica lo snapshot giornaliero (optcg_history/) in opc_price_snapshots su op-command-deck.
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { createRequire } from "node:module";
+import postgres from "postgres";
 
-const require = createRequire("c:/Users/libot/Desktop/COMMAND DECK/db/package.json");
-const postgres = require("postgres");
-
-const DATABASE_URL = process.env.DATABASE_URL
-  || (existsSync("c:/Users/libot/Desktop/COMMAND DECK/.env")
-    ? readFileSync("c:/Users/libot/Desktop/COMMAND DECK/.env", "utf8").match(/^DATABASE_URL=(.+)$/m)?.[1]
-    : null);
-
+const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) { console.log("[history-db] DATABASE_URL assente, skip"); process.exit(0); }
 
 const HIST_DIR = "optcg_history";
@@ -38,7 +31,6 @@ try {
     avg30: prices[id].avg30 ?? null,
     available: prices[id].available ?? null,
   }));
-  // batch insert 200 alla volta
   let n = 0;
   for (let i = 0; i < rows.length; i += 200) {
     const batch = rows.slice(i, i + 200);
