@@ -1333,7 +1333,7 @@
       btn.disabled = true; err.textContent = "";
       try {
         await doLogin(
-          document.getElementById("auth-email").value.trim(),
+          document.getElementById("auth-email").value.trim().toLowerCase(),
           document.getElementById("auth-pass").value
         );
       } catch (ex) {

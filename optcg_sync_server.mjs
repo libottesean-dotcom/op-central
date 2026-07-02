@@ -43,10 +43,12 @@ function auth(req) {
 }
 
 async function login(email, password) {
+  email = String(email || "").trim().toLowerCase();
+  password = String(password || "");
   const rows = await sql`
     SELECT id::text AS id, email
     FROM auth.users
-    WHERE email = ${email}
+    WHERE lower(email) = ${email}
       AND encrypted_password = crypt(${password}, encrypted_password)
     LIMIT 1
   `;
