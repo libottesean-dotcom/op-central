@@ -1,15 +1,27 @@
-# Deploy sync server OP Central su Render (https://render.com)
-# 1. Crea Web Service da questo repo
-# 2. Aggiungi env DATABASE_URL (da op-command-deck Supabase)
-# 3. Aggiorna opc-config.js syncUrl con l'URL Render (es. https://op-central-sync.onrender.com)
+# OP Central su Render — stesso account di lp-generator (Blueprint)
+# Dashboard Render → New → Blueprint → repo libottesean-dotcom/op-central
+# Env da impostare a mano: DATABASE_URL (Supabase op-command-deck)
 
 services:
+  # App web statica (HTML + catalog.js) — ~0€ extra se già pagate istanze/static
+  - type: web
+    name: op-central-app
+    runtime: static
+    buildCommand: npm install && node optcg_site_build.mjs
+    staticPublishPath: public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # Sync collezione/watchlist (Node, sempre acceso)
   - type: web
     name: op-central-sync
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm install
     startCommand: node optcg_sync_server.mjs
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         sync: false

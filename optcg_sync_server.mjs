@@ -1,12 +1,9 @@
 // Server sync OP Central → op-command-deck (Postgres diretto, niente chiave anon).
-// Avvia: node optcg_sync_server.mjs   (porta 8778)
-import { createRequire } from 'node:module';
+// Avvia: node optcg_sync_server.mjs   (porta 8778 in locale, PORT su Render)
+import postgres from 'postgres';
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
-
-const require = createRequire('c:/Users/libot/Desktop/COMMAND DECK/db/package.json');
-const postgres = require('postgres');
 
 const PORT = Number(process.env.PORT) || 8778;
 const HOST = process.env.HOST || "0.0.0.0";
