@@ -74,7 +74,8 @@
 | Sync collezione/watchlist (server locale porta 8778) | ✅ **solo se PC acceso + optcg_start.bat** |
 | Storico prezzi nel DB | ✅ 1 giorno salvato (serve accumulo) |
 | `optcg_start.bat` | ✅ |
-| **Soci da remoto (internet)** | ❌ NON FATTO — serve deploy Render/VPS |
+| **Soci da remoto (internet)** | ❌ Serve deploy sync su **Render.com** (account tuo) + URL in `opc-config.js` |
+| **App online (senza PC)** | ❌ GitHub Pages non disponibile su repo **privato** (piano free). Opzioni: repo pubblico, GitHub Pro, o hosting static su Render/Netlify |
 | **GitHub Actions attivo** | ✅ Repo https://github.com/libottesean-dotcom/op-central · secrets `DATABASE_URL` + `CARDMARKET_API_KEY` · cron 05:30 UTC+2 |
 | **Aggiornamento senza PC acceso** | 🟡 GitHub Actions fa build/map/prezzi/storico/catalog ogni mattina; **catalog.js** va ancora servito (Pages/Render static) |
 
