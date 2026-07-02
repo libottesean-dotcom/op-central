@@ -4,10 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0a0b0d">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="logo.png">
+<link rel="icon" href="logo.png" type="image/png">
 <title>OP Central — One Piece TCG</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1008,7 +1005,6 @@
       <p><strong>Prezzo target</strong> = prezzo a cui vuoi comprare (modificabile nella Watchlist); la % mostra la distanza dal mercato Cardmarket.</p>
       <p><strong>Box sealed:</strong> versione INGLESE, valore = Price Trend Cardmarket EU al 30.06.2026. OP-01 è White Bottom (Wave 2) — la Wave 1 Blue Bottom varrebbe ~4-5x.</p>
       <p><strong>Carte chase:</strong> lingua INGLESE salvo dove indicato (Luffy P-041 = GIAPPONESE, PSA10). Ace OP13-119 €500+ vale solo per la versione misprint.</p>
-      <p><strong>eBay (€):</strong> vendite reali mercato US convertite (~0,91 €/$), NON eBay Italia — dato indicativo da riverificare.</p>
       <p><strong>30g/14g/7g:</strong> trend storico Cardmarket. "n/d" = non ancora letto per quel set.</p>
     </div>
   </section>
@@ -1820,7 +1816,7 @@
   let wlSortKey = "cm", wlSortDir = "desc";
   const wlVal = {
     char: it => it.char.toLowerCase(),
-    cm: it => it.cm, ebay: it => it.ebay, t7: it => it.t7, t14: it => it.t14, t30: it => it.t30,
+    cm: it => it.cm, t7: it => it.t7, t14: it => it.t14, t30: it => it.t30,
     target: it => Number(targetOf(it)),
     buyzone: it => (it.cm != null ? (it.cm - Number(targetOf(it))) / (Number(targetOf(it)) || 1) : null),
     rarity: it => rarityOf(it).toLowerCase(),
@@ -1911,7 +1907,6 @@
         </td>
         <td class="center"><div class="badge-stack">${badge}${langBadge}</div></td>
         <td class="center num-inline">${hasCm ? fmt2(cm) : '<span class="dim">n/d</span>'}</td>
-        <td class="center num-inline dim">${it.ebay == null ? 'n/d' : fmt(it.ebay)}</td>
         <td class="center num-inline dim">${trendPct(it.t7)}</td>
         <td class="center num-inline dim">${it.t14 == null ? '<span class="dim">n/d</span>' : "~" + trendPct(it.t14)}</td>
         <td class="center num-inline dim">${trendPct(it.t30)}</td>
@@ -1939,9 +1934,9 @@
     };
     list.innerHTML = `
       <div class="table-card">
-        <table style="min-width:1660px">
+        <table style="min-width:1560px">
           <colgroup>
-            <col style="width:240px"><col style="width:110px"><col style="width:110px"><col style="width:100px">
+            <col style="width:240px"><col style="width:110px"><col style="width:110px">
             <col style="width:100px"><col style="width:100px"><col style="width:100px"><col style="width:96px">
             <col style="width:150px"><col style="width:100px"><col style="width:140px"><col style="width:210px"><col style="width:96px">
           </colgroup>
@@ -1950,7 +1945,6 @@
               ${thH("char", "Elemento", "")}
               <th class="center">Tipo / Lingua</th>
               ${thH("cm", "Cardmarket")}
-              ${thH("ebay", "eBay IT")}
               ${thH("t7", "7g")}
               ${thH("t14", "14g")}
               ${thH("t30", "30g")}

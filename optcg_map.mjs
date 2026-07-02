@@ -38,6 +38,23 @@ for (const it of [...singles, ...sealed]) {
 }
 console.log(`[map] en_id assegnati da cm_id tcggo (gratis): ${fromCmId} nuovi · entries totali: ${Object.keys(map.entries).length}`);
 
+// Invalida cm_id tcggo verificati sbagliati (nome prodotto API ≠ code carta)
+const PRICES = loadJson("optcg_prices.json", { prices: {} }).prices;
+let badCmId = 0;
+for (const it of singles) {
+  const e = map.entries[it.key];
+  if (!e?.en_id || e.en_src !== "tcggo_cm_id" || !it.code) continue;
+  const rec = PRICES[e.en_id];
+  if (rec?.name && !rec.name.includes(it.code)) {
+    delete e.en_id;
+    delete e.en_name;
+    delete e.en_src;
+    delete map.codes_done[it.code];
+    badCmId++;
+  }
+}
+if (badCmId) console.log(`[map] cm_id tcggo invalidati (nome API ≠ code): ${badCmId}`);
+
 const normTxt = s => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 // Cardmarket marca i prodotti JP con "(Non-English)" oppure "(Japanese)" nell'expansion
 const isJPExp = exp => /\((non-english|japanese)\)/i.test(exp || "");

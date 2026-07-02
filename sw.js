@@ -1,4 +1,4 @@
-const CACHE = 'op-central-v2';
+const CACHE = 'op-central-v3';
 const SHELL = ['./index.html', './catalog.js', './opc-config.js', './logo.png', './manifest.json'];
 
 self.addEventListener('install', e => {

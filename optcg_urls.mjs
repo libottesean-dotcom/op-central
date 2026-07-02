@@ -16,7 +16,10 @@ const issues = [];
 for (const it of ITEMS) {
   const id = it.cmId != null ? String(it.cmId) : null;
   const rec = id ? PRICES[id] : null;
-  const expected = rec
+  const recOk = rec && (
+    it.type !== "Carta" || !it.code || !rec.name || rec.name.includes(it.code)
+  );
+  const expected = recOk
     ? urlFromCmRec(rec, it.note || null)
     : (it.type === "Box" ? boosterBoxUrl(it.note) : it.type === "Case" ? sealedBoosterUrl(it.char, it.note) : null);
 
