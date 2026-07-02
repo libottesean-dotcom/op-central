@@ -75,8 +75,8 @@
 | Storico prezzi nel DB | ✅ 1 giorno salvato (serve accumulo) |
 | `optcg_start.bat` | ✅ |
 | **Soci da remoto (internet)** | ❌ NON FATTO — serve deploy Render/VPS |
-| **GitHub Actions attivo** | ❌ NON FATTO — file creato ma nessun repo git, nessun secret, non gira |
-| **Aggiornamento senza PC acceso** | ❌ NON FATTO — dipende ancora dal task Windows 05:30 |
+| **GitHub Actions attivo** | ✅ Repo https://github.com/libottesean-dotcom/op-central · secrets `DATABASE_URL` + `CARDMARKET_API_KEY` · cron 05:30 UTC+2 |
+| **Aggiornamento senza PC acceso** | 🟡 GitHub Actions fa build/map/prezzi/storico/catalog ogni mattina; **catalog.js** va ancora servito (Pages/Render static) |
 
 **FASE C — Alert + mobile · 🟡 PARZIALE**
 | Item | Stato REALE |
@@ -91,7 +91,7 @@
 | Voci in catalog.js | 🔴 **938** su ~1800-2000 attese |
 | Prezzi Cardmarket aggiornati | 🔴 **655 prodotti** su ~938+ — non tutto il catalogo |
 | Mapping Cardmarket completo | 🔴 tier 3-4 ancora da finire |
-| Tutti i prodotti aggiornati ogni 24h | 🔴 rotazione 2-3 giorni per il resto (budget 2000 req/g) |
+| Tutti i prodotti aggiornati ogni 24h | 🟡 **Ora sì** (~931 prodotti mappati < 2000 req/g). Quando catalogo pieno EN+JP (~2500 req) serve rotazione tier 4 o meno mapping nello stesso giorno |
 | Promo set "P" completi | ❌ da verificare |
 | EB04 normalizzazione | ❌ da verificare |
 | Storico 7/14/30g reale | ❌ serve 7+ giorni di snapshot (oggi: 1 solo giorno) |
