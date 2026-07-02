@@ -335,22 +335,6 @@
     font-family: 'Geist Mono', monospace; font-size: 9.5px;
     letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted-2);
   }
-  .live-dot {
-    margin-left: auto;
-    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--green);
-    display: inline-flex; align-items: center; gap: 7px;
-  }
-  .live-dot::before {
-    content: ""; width: 7px; height: 7px; border-radius: 50%;
-    background: var(--green); box-shadow: 0 0 0 0 rgba(94,155,107,0.6);
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(94,155,107,0.5); }
-    70% { box-shadow: 0 0 0 7px rgba(94,155,107,0); }
-    100% { box-shadow: 0 0 0 0 rgba(94,155,107,0); }
-  }
 
   /* ---- Tabs / nav ---- */
   .tabs {
@@ -703,16 +687,11 @@
     .topbar-inner {
       padding-top: max(12px, env(safe-area-inset-top));
       display: grid;
-      grid-template-columns: 1fr auto;
-      grid-template-areas: "brand auth" "status status" "tabs tabs";
-      gap: 8px 10px;
+      grid-template-columns: 1fr;
+      grid-template-areas: "brand" "tabs";
+      gap: 8px;
     }
     .brand { grid-area: brand; }
-    .auth-out { grid-area: auth; margin-left: 0; align-self: center; }
-    .live-dot {
-      grid-area: status; margin-left: 0; width: 100%;
-      justify-content: center; font-size: 9px; flex-wrap: wrap;
-    }
     .tabs { grid-area: tabs; width: 100%; margin-top: 2px; }
     .app, .topbar-inner { padding-left: 12px; padding-right: 12px; }
     .view { padding-top: 18px; }
@@ -951,18 +930,6 @@
   }
   .auth-card button[type="submit"]:disabled { opacity: 0.6; cursor: wait; }
   .auth-err { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 16px; }
-  .auth-out {
-    margin-left: auto; font-size: 11px; color: var(--muted-2);
-    border: 1px solid var(--line); background: transparent;
-    border-radius: 8px; padding: 6px 10px; cursor: pointer;
-    font-family: 'Geist Mono', monospace;
-  }
-  .auth-out:hover { color: var(--porcelain); border-color: var(--gold); }
-  .cloud-dot {
-    font-family: 'Geist Mono', monospace; font-size: 10px;
-    color: var(--muted-2); letter-spacing: 0.06em;
-  }
-  .cloud-dot.on { color: #6ecf8a; }
   body.auth-locked .topbar,
   body.auth-locked .ticker,
   body.auth-locked .app { filter: blur(6px); pointer-events: none; user-select: none; }
@@ -989,8 +956,6 @@
       <div class="brand-mark"><img src="logo.png" alt="OP Central"></div>
       <div class="brand-txt"><b>OP Central</b><span>One Piece TCG</span></div>
     </div>
-    <div class="live-dot"><span class="cloud-dot" id="cloud-dot" title="Sync cloud">○ locale</span> · Live · Cardmarket EU</div>
-    <button type="button" class="auth-out hidden" id="auth-out">Esci</button>
     <nav class="tabs" id="tabs">
       <button class="tab active" data-view="esplora"><span class="tlabel">Esplora</span></button>
       <button class="tab" data-view="watchlist"><span class="tlabel">Watchlist</span><span class="tcount" id="c-watch">0</span></button>
@@ -1318,12 +1283,7 @@
     } catch (e) { console.warn("[cloud load]", e.message); }
   }
 
-  function setCloudUi(on) {
-    const dot = document.getElementById("cloud-dot");
-    const out = document.getElementById("auth-out");
-    if (dot) { dot.textContent = on ? "● cloud" : "○ locale"; dot.classList.toggle("on", on); }
-    if (out) out.classList.toggle("hidden", !on);
-  }
+  function setCloudUi(on) { /* sync attivo in background, niente badge in header */ }
 
   function lockApp(locked) {
     document.body.classList.toggle("auth-locked", locked);
@@ -1408,12 +1368,6 @@
       } catch (ex) {
         err.textContent = ex.message === "Credenziali non valide" ? "Email o password non corretti" : ex.message;
       } finally { btn.disabled = false; }
-    });
-    document.getElementById("auth-out")?.addEventListener("click", () => {
-      syncToken = null;
-      sessionStorage.removeItem("opc_sync_token");
-      cloudEnabled = false;
-      showAuth();
     });
   }
 
