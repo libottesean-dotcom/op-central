@@ -28,7 +28,7 @@ jobs:
 
       - name: Verifica catalogo
         run: |
-          node optcg_catalog.mjs
+          cp optcg_config.example.json optcg_config.json
           node optcg_rarity_verify.mjs
           node optcg_verify.mjs
 
