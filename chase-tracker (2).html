@@ -443,7 +443,6 @@
   /* ---- Controls / filtri ---- */
   .controls {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 18px;
     padding: 14px;
@@ -452,11 +451,26 @@
     border-radius: 14px;
     align-items: stretch;
   }
-  .search {
-    grid-column: 1 / -1;
-    min-width: 0;
-    position: relative;
+  /* Watchlist: search + 4 filtri su 1 riga (desktop) */
+  .controls:not(.has-sort) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "search search search search"
+      "f1 f2 f3 f4";
   }
+  /* Esplora / Collezione: search + 5 filtri su 1 riga (desktop) */
+  .controls.has-sort {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-areas:
+      "search search search search search"
+      "f1 f2 f3 f4 sort";
+  }
+  .controls .search { grid-area: search; min-width: 0; position: relative; }
+  .controls .ctl-f1 { grid-area: f1; }
+  .controls .ctl-f2 { grid-area: f2; }
+  .controls .ctl-f3 { grid-area: f3; }
+  .controls .ctl-f4 { grid-area: f4; }
+  .controls .ctl-sort { grid-area: sort; }
   .search input {
     width: 100%; font-family: 'Geist', sans-serif; font-size: 13.5px;
     padding: 10px 14px 10px 36px; border-radius: 9px;
@@ -702,7 +716,27 @@
     .app, .topbar-inner { padding-left: 12px; padding-right: 12px; }
     .view { padding-top: 18px; }
     .view-head p { font-size: 13px; }
-    .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 7px; }
+    .controls { padding: 12px; gap: 7px; }
+    .controls.has-sort {
+      grid-template-columns: 1fr minmax(104px, 34%);
+      grid-template-areas:
+        "search sort"
+        "f1 f2"
+        "f3 f4";
+    }
+    .controls.has-sort .search input {
+      font-size: 13px; padding: 9px 10px 9px 32px;
+    }
+    .controls.has-sort .ctl-sort {
+      font-size: 11.5px; padding: 9px 26px 9px 8px;
+    }
+    .controls:not(.has-sort) {
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas:
+        "search search"
+        "f1 f2"
+        "f3 f4";
+    }
     .sort-hint { display: none; }
     .hero { grid-template-columns: 1fr; padding: 18px; gap: 16px; }
     .hero-mini { grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -953,31 +987,31 @@
       <h2>Esplora il mercato</h2>
       <p>Tutto il mercato One Piece in un colpo d'occhio: prezzi Cardmarket EU, andamento e volatilità. Aggiungi ciò che possiedi alla <strong>Collezione</strong> o segui i grail nella <strong>Watchlist</strong>.</p>
     </div>
-    <div class="controls">
+    <div class="controls has-sort">
       <div class="search">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="q" type="text" placeholder="Cerca carta, box, set o codice…" autocomplete="off">
       </div>
-      <select class="tselect" id="filter-set"><option value="all">Tutti i set</option></select>
-      <select class="tselect" id="filter-tipo">
-        <option value="all">Tutti i tipi</option>
-        <option value="Box">Solo Box</option>
-        <option value="Case">Solo Case</option>
-        <option value="Carta">Solo Carte</option>
-      </select>
-      <select class="tselect" id="filter-lingua">
-        <option value="all">Tutte le lingue</option>
-        <option value="EN">Solo EN</option>
-        <option value="JP">Solo JP</option>
-      </select>
-      <select class="tselect" id="filter-rarita"><option value="all">Tutte le rarità</option></select>
-      <select class="tselect" id="sort">
+      <select class="tselect ctl-sort" id="sort">
         <option value="cm">Prezzo ↓</option>
         <option value="cm-asc">Prezzo ↑</option>
         <option value="mov">Variazione 7g ↓</option>
         <option value="mov-asc">Variazione 7g ↑</option>
         <option value="char">Nome A→Z</option>
       </select>
+      <select class="tselect ctl-f1" id="filter-set"><option value="all">Tutti i set</option></select>
+      <select class="tselect ctl-f2" id="filter-tipo">
+        <option value="all">Tutti i tipi</option>
+        <option value="Box">Solo Box</option>
+        <option value="Case">Solo Case</option>
+        <option value="Carta">Solo Carte</option>
+      </select>
+      <select class="tselect ctl-f3" id="filter-lingua">
+        <option value="all">Tutte le lingue</option>
+        <option value="EN">Solo EN</option>
+        <option value="JP">Solo JP</option>
+      </select>
+      <select class="tselect ctl-f4" id="filter-rarita"><option value="all">Tutte le rarità</option></select>
     </div>
     <div class="grid" id="grid-esplora"></div>
     <div id="esplora-sentinel" style="height:1px"></div>
@@ -1004,19 +1038,19 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="wl-q" type="text" placeholder="Cerca nella watchlist…" autocomplete="off">
       </div>
-      <select class="tselect" id="wl-set"><option value="all">Tutti i set</option></select>
-      <select class="tselect" id="wl-tipo">
+      <select class="tselect ctl-f1" id="wl-set"><option value="all">Tutti i set</option></select>
+      <select class="tselect ctl-f2" id="wl-tipo">
         <option value="all">Tutti i tipi</option>
         <option value="Box">Solo Box</option>
         <option value="Case">Solo Case</option>
         <option value="Carta">Solo Carte</option>
       </select>
-      <select class="tselect" id="wl-lingua">
+      <select class="tselect ctl-f3" id="wl-lingua">
         <option value="all">Tutte le lingue</option>
         <option value="EN">Solo EN</option>
         <option value="JP">Solo JP</option>
       </select>
-      <select class="tselect" id="wl-rarita"><option value="all">Tutte le rarità</option></select>
+      <select class="tselect ctl-f4" id="wl-rarita"><option value="all">Tutte le rarità</option></select>
       <span class="sort-hint">Clicca un'intestazione per ordinare ↕</span>
     </div>
     <div class="wlist" id="list-watch"></div>
@@ -1053,30 +1087,30 @@
       <div class="pf-stats" id="hero-coll"></div>
     </div>
 
-    <div class="controls">
+    <div class="controls has-sort">
       <div class="search">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="coll-q" type="text" placeholder="Cerca nella collezione…" autocomplete="off">
       </div>
-      <select class="tselect" id="coll-set"><option value="all">Tutti i set</option></select>
-      <select class="tselect" id="coll-tipo">
-        <option value="all">Tutti i tipi</option>
-        <option value="Box">Solo Box</option>
-        <option value="Case">Solo Case</option>
-        <option value="Carta">Solo Carte</option>
-      </select>
-      <select class="tselect" id="coll-lingua">
-        <option value="all">Tutte le lingue</option>
-        <option value="EN">Solo EN</option>
-        <option value="JP">Solo JP</option>
-      </select>
-      <select class="tselect" id="coll-rarita"><option value="all">Tutte le rarità</option></select>
-      <select class="tselect" id="coll-sort">
+      <select class="tselect ctl-sort" id="coll-sort">
         <option value="cm">Valore ↓</option>
         <option value="cm-asc">Valore ↑</option>
         <option value="mov">Variazione 7g ↓</option>
         <option value="char">Nome A→Z</option>
       </select>
+      <select class="tselect ctl-f1" id="coll-set"><option value="all">Tutti i set</option></select>
+      <select class="tselect ctl-f2" id="coll-tipo">
+        <option value="all">Tutti i tipi</option>
+        <option value="Box">Solo Box</option>
+        <option value="Case">Solo Case</option>
+        <option value="Carta">Solo Carte</option>
+      </select>
+      <select class="tselect ctl-f3" id="coll-lingua">
+        <option value="all">Tutte le lingue</option>
+        <option value="EN">Solo EN</option>
+        <option value="JP">Solo JP</option>
+      </select>
+      <select class="tselect ctl-f4" id="coll-rarita"><option value="all">Tutte le rarità</option></select>
     </div>
     <div class="grid" id="grid-coll"></div>
   </section>
