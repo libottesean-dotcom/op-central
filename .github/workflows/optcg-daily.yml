@@ -68,7 +68,7 @@ jobs:
           git pull --rebase origin master
           git push
 
-      - name: Trigger deploy Render (backup)
+      - name: Trigger deploy Render (hook API)
         if: env.RENDER_API_KEY != '' && env.RENDER_SERVICE_ID != ''
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}

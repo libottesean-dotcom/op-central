@@ -1,4 +1,5 @@
-// Trigger esterno per la pipeline giornaliera (Render Cron / cron-job.org / task locale).
+// Trigger opzionale per workflow_dispatch su GitHub (NON usato in produzione).
+// La pipeline gira solo via schedule 05:30 Europe/Rome in optcg-daily.yml.
 // Env: CRON_DISPATCH_TOKEN (PAT con repo + actions), GITHUB_REPOSITORY (owner/repo)
 import { exit } from "node:process";
 

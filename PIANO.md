@@ -1,5 +1,6 @@
 # PIANO — OP Central (One Piece TCG · Market & Collection)
-> **Fonte di verità del progetto.** Ultimo aggiornamento: **03/07/2026 ~10:00**.
+> **Fonte di verità del progetto.** Ultimo aggiornamento: **03/07/2026 ~10:25**.  
+> Panoramica repo: [README.md](./README.md)
 
 ---
 
