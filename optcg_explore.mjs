@@ -1,6 +1,8 @@
-const KEY = "f3388cbee0mshebb8a65cd62025bp1b8965jsn3b3dc8550ba4";
+import { loadRapidKeys } from "./optcg_rapid.mjs";
+
 const HOST = "cardmarket-api-tcg.p.rapidapi.com";
 const base = "https://" + HOST;
+const KEY = loadRapidKeys()[0];
 
 async function get(path) {
   const res = await fetch(base + path, {

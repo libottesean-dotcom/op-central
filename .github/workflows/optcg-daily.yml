@@ -43,6 +43,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RARITY_MAX_NEW: 0
+          CM_RAPID_KEY: ${{ secrets.CM_RAPID_KEY }}
+          CM_RAPID_KEYS: ${{ secrets.CM_RAPID_KEYS }}
         run: |
           node optcg_build.mjs
           node optcg_map.mjs

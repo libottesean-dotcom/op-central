@@ -2,8 +2,10 @@
 // Salva i dati grezzi su disco e tiene traccia dell'ultima pagina scaricata,
 // così puoi rilanciarlo nei giorni successivi finché non completa (limite 100 req/giorno sul piano free).
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { loadRapidKeys } from "./optcg_rapid.mjs";
 
-const KEY = process.env.CM_RAPID_KEY || "f3388cbee0mshebb8a65cd62025bp1b8965jsn3b3dc8550ba4";
+const KEYS = loadRapidKeys();
+let keyIdx = 0;
 const HOST = "cardmarket-api-tcg.p.rapidapi.com";
 const base = "https://" + HOST;
 
@@ -21,8 +23,19 @@ let products = load(PRODUCTS_FILE, {}); // id -> product
 let episodes = load(EPISODES_FILE, {}); // id -> episode
 let state = load(STATE_FILE, { cardsPage: 1, productsPage: 1, episodesPage: 1, cardsDone: false, productsDone: false, episodesDone: false });
 
+function currentKey() { return KEYS[keyIdx]; }
+
+function rotateKey(reason) {
+  if (keyIdx >= KEYS.length - 1) return false;
+  keyIdx++;
+  console.log(`[build] cambio chiave RapidAPI (${reason}) → key ${keyIdx + 1}/${KEYS.length}`);
+  return true;
+}
+
 async function get(path) {
-  const res = await fetch(base + path, { headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": KEY } });
+  const res = await fetch(base + path, {
+    headers: { "x-rapidapi-host": HOST, "x-rapidapi-key": currentKey() },
+  });
   const remaining = Number(res.headers.get("x-ratelimit-requests-remaining"));
   let json = null;
   try { json = await res.json(); } catch (e) {}
@@ -65,6 +78,8 @@ function trimProduct(p) {
 const MIN_REMAINING = 3; // margine di sicurezza
 let stop = false;
 
+console.log(`[build] chiavi RapidAPI: ${KEYS.length}`);
+
 let min429 = 0;
 async function pull(kind, file, store, trim, pageKey, doneKey) {
   while (!stop && !state[doneKey]) {
@@ -72,10 +87,18 @@ async function pull(kind, file, store, trim, pageKey, doneKey) {
     const { json, remaining, status } = await get(`/one-piece/${kind}?per_page=20&page=${page}`);
     if (status === 429) {
       // limite per-minuto: attendi e riprova la STESSA pagina (senza avanzare)
-      if (++min429 > 8) { stop = true; console.log(`[${kind}] troppi 429, mi fermo.`); break; }
+      if (++min429 > 8) {
+        if (rotateKey("429 ripetuti")) { min429 = 0; continue; }
+        stop = true; console.log(`[${kind}] troppi 429, mi fermo.`); break;
+      }
       console.log(`[${kind}] 429 (limite/minuto) su pagina ${page}, attendo 65s e riprovo...`);
       await sleep(65000);
       continue;
+    }
+    if (status === 403 || status === 401) {
+      if (rotateKey(`HTTP ${status}`)) continue;
+      console.log(`[${kind}] stop: auth ${status}`);
+      stop = true; break;
     }
     if (status !== 200 || !json || !json.data) {
       console.log(`[${kind}] stop: status ${status}, remaining ${remaining}`);
@@ -84,11 +107,14 @@ async function pull(kind, file, store, trim, pageKey, doneKey) {
     min429 = 0;
     json.data.forEach(x => { const t = trim(x); store[t.id] = t; });
     const total = json.paging?.total || page;
-    console.log(`[${kind}] pagina ${page}/${total} · elementi tot ${Object.keys(store).length} · quota giornaliera residua ${remaining}`);
+    console.log(`[${kind}] pagina ${page}/${total} · elementi tot ${Object.keys(store).length} · quota residua ${remaining} · key ${keyIdx + 1}/${KEYS.length}`);
     if (page >= total) { state[doneKey] = true; }
     else { state[pageKey] = page + 1; }
     save(file, store); save(STATE_FILE, state);
-    if (Number.isFinite(remaining) && remaining <= MIN_REMAINING) { stop = true; console.log(`[${kind}] quota giornaliera quasi esaurita, mi fermo (riprendi domani).`); }
+    if (Number.isFinite(remaining) && remaining <= MIN_REMAINING) {
+      if (rotateKey("quota giornaliera")) continue;
+      stop = true; console.log(`[${kind}] quota esaurita su tutte le chiavi, riprendo domani.`);
+    }
     await sleep(2500);
   }
 }
