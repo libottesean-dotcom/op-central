@@ -22,6 +22,21 @@ const romeToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Euro
 const runDay = run =>
   new Date(run.created_at).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
+/** Run nella finestra giornaliera 04:30–23:59 (Roma) — esclude trigger manuali notturni. */
+const isDailyWindowRun = run => {
+  const t = new Date(run.created_at);
+  if (runDay(run) !== romeToday()) return false;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Rome",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(t);
+  const h = Number(parts.find(p => p.type === "hour")?.value || 0);
+  const m = Number(parts.find(p => p.type === "minute")?.value || 0);
+  return h > 4 || (h === 4 && m >= 30);
+};
+
 async function listRuns() {
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/optcg-daily.yml/runs?per_page=15`;
   const res = await fetch(url, { headers });
@@ -41,12 +56,12 @@ async function dispatch() {
 const today = romeToday();
 const runs = await listRuns();
 
-if (runs.some(r => runDay(r) === today && r.status === "completed" && r.conclusion === "success")) {
-  console.log(`[cron] Pipeline già OK oggi (${today}, Roma) — skip`);
-  exit(0);
-}
 if (runs.some(r => runDay(r) === today && r.status === "in_progress")) {
   console.log(`[cron] Pipeline già in corso (${today}) — skip`);
+  exit(0);
+}
+if (runs.some(r => isDailyWindowRun(r) && r.status === "completed" && r.conclusion === "success")) {
+  console.log(`[cron] Pipeline già OK oggi (${today}, finestra 04:30+ Roma) — skip`);
   exit(0);
 }
 

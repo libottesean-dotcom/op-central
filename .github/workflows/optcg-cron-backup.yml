@@ -25,20 +25,28 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+            const runDay = r => new Date(r.created_at).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+            const isDailyWindowRun = r => {
+              if (runDay(r) !== today) return false;
+              const parts = new Intl.DateTimeFormat("en-GB", {
+                timeZone: "Europe/Rome", hour: "numeric", minute: "numeric", hour12: false,
+              }).formatToParts(new Date(r.created_at));
+              const h = Number(parts.find(p => p.type === "hour")?.value || 0);
+              const m = Number(parts.find(p => p.type === "minute")?.value || 0);
+              return h > 4 || (h === 4 && m >= 30);
+            };
             const { data } = await github.rest.actions.listWorkflowRuns({
               owner,
               repo,
               workflow_id: "optcg-daily.yml",
               per_page: 20,
             });
-            const okToday = data.workflow_runs.some(r => {
-              const d = new Date(r.created_at).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
-              return d === today && r.status === "completed" && r.conclusion === "success";
-            });
-            const running = data.workflow_runs.some(r => {
-              const d = new Date(r.created_at).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
-              return d === today && r.status === "in_progress";
-            });
+            const okToday = data.workflow_runs.some(r =>
+              isDailyWindowRun(r) && r.status === "completed" && r.conclusion === "success",
+            );
+            const running = data.workflow_runs.some(r =>
+              runDay(r) === today && r.status === "in_progress",
+            );
             if (okToday) {
               core.setOutput("run", "false");
               core.info(`Pipeline già completata oggi (${today}, ora Roma).`);
