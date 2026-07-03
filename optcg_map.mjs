@@ -18,6 +18,17 @@ const MAP_FILE = "optcg_cmmap.json";
 const map = loadJson(MAP_FILE, { entries: {}, codes_done: {}, notes: [] });
 map.entries ||= {}; map.codes_done ||= {}; map.notes ||= [];
 
+// Riprova code che fallirono per expansion mismatch (logica matching migliorata)
+const retryNotes = (map.notes || []).filter(n => /nessun risultato con expansion|errore/i.test(n));
+for (const n of retryNotes) {
+  const code = n.split(/[\s[]/)[0];
+  if (code && map.codes_done[code]) delete map.codes_done[code];
+}
+if (retryNotes.length) {
+  map.notes = map.notes.filter(n => !/nessun risultato con expansion/i.test(n));
+  console.log(`[map] code da riprovare (matching aggiornato): ${retryNotes.length} note`);
+}
+
 const { singles, sealed } = buildRawItems();
 
 // ---- cap di budget: hard cap del giorno se configurato per OGGI, altrimenti daily_cap ----
@@ -56,6 +67,13 @@ for (const it of singles) {
 if (badCmId) console.log(`[map] cm_id tcggo invalidati (nome API ≠ code): ${badCmId}`);
 
 const normTxt = s => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const normSetName = s => normTxt((s || "").replace(/^one piece card /i, ""));
+const expansionMatches = (setName, expansion) => {
+  const sn = normSetName(setName);
+  const ex = normSetName(stripJPMark(expansion));
+  if (!ex) return false;
+  return sn === ex || sn.includes(ex) || ex.includes(sn);
+};
 // Cardmarket marca i prodotti JP con "(Non-English)" oppure "(Japanese)" nell'expansion
 const isJPExp = exp => /\((non-english|japanese)\)/i.test(exp || "");
 const stripJPMark = exp => (exp || "").replace(/\((non-english|japanese)\)/i, "");
@@ -102,10 +120,19 @@ function assignFromResults(code, results) {
     bySetName.get(k).push(it);
   }
   for (const [snKey, items] of bySetName) {
-    const enCand = results.filter(r => !isJPExp(r.expansion) && normTxt(r.expansion) === snKey)
+    const setLabel = items[0].setName;
+    let enCand = results.filter(r => !isJPExp(r.expansion) && expansionMatches(setLabel, r.expansion))
       .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
-    const jpCand = results.filter(r => isJPExp(r.expansion) && normTxt(stripJPMark(r.expansion)) === snKey)
+    let jpCand = results.filter(r => isJPExp(r.expansion) && expansionMatches(setLabel, r.expansion))
       .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
+    if (!enCand.length) {
+      enCand = results.filter(r => !isJPExp(r.expansion) && (r.name || "").includes(code))
+        .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
+    }
+    if (!jpCand.length) {
+      jpCand = results.filter(r => isJPExp(r.expansion) && (r.name || "").includes(code))
+        .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
+    }
 
     const sorted = items.slice().sort((a, b) => (verNum(a.ver) ?? 0) - (verNum(b.ver) ?? 0));
 
