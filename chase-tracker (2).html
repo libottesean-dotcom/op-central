@@ -469,7 +469,7 @@
     position: relative; border: 1px solid var(--line); border-radius: 14px;
     background: var(--obsidian-2); overflow: hidden;
     transition: border-color 0.16s ease, transform 0.16s ease;
-    display: flex; flex-direction: column;
+    display: flex; flex-direction: column; height: 100%;
   }
   .pcard:hover { border-color: var(--gold); transform: translateY(-2px); }
   .pcard-media {
@@ -493,9 +493,17 @@
   }
   .mini-badge.jp { color: var(--red); border-color: rgba(200,83,63,0.5); }
   .mini-badge.type { color: var(--gold); border-color: rgba(207,162,75,0.4); }
-  .pcard-body { padding: 13px 14px 14px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
-  .pcard-name { font-size: 13.5px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
-  .pcard-code { font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--muted-2); }
+  .pcard-body { padding: 13px 14px 14px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .pcard-name {
+    font-size: 13.5px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em;
+    min-height: 2.5em; max-height: 2.5em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .pcard-code {
+    font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--muted-2); line-height: 1.35;
+    min-height: 2.7em; max-height: 2.7em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
   .pcard-price {
     display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 9px;
   }
@@ -505,7 +513,7 @@
   .delta.up { color: var(--green); } .delta.down { color: var(--red); } .delta.flat { color: var(--muted-2); }
   .pcard-foot {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--line-soft);
+    margin-top: auto; padding-top: 11px; border-top: 1px solid var(--line-soft);
   }
   .pcard-actions { display: flex; gap: 6px; }
   .act {
@@ -631,6 +639,10 @@
   .qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .pcard-qty { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line-soft); }
   .pcard-qty .qlab { font-family: 'Geist Mono', monospace; font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-2); }
+
+  /* Blocco fisso Pagato/P&L: stessa altezza su tutte le card (anche fuori collezione) */
+  .pcard-extra { min-height: 71px; margin-top: 4px; }
+  .pcard-extra.is-reserved { visibility: hidden; pointer-events: none; }
 
   /* ---- Campo "Pagato" + P&L (solo item in collezione) ---- */
   .pcard-paid { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
@@ -1549,8 +1561,8 @@
       : `<div class="ph">${it.set}<small>${it.type}</small></div>`;
     const price = it.cm != null ? `<span class="pv">${fmt2(it.cm)}</span>` : `<span class="pv dim">n/d</span>`;
     const delta = m == null ? `<span class="delta flat">— 7g</span>` : `<span class="delta ${pctCls(m)}">${arrowOf(m)}${pctStr(m)}</span>`;
-    // riga "Pagato" + P&L: solo per gli item in collezione
-    let paidRow = "";
+    // Pagato + P&L in collezione; spazio riservato altrove così i bottoni restano allineati
+    let extraBlock = "";
     if (b === "coll") {
       const paid = paidOf(it);
       let pl = `<span class="pl-hint">imposta il pagato per vedere il P&amp;L</span>`;
@@ -1563,12 +1575,16 @@
       } else if (paid != null) {
         pl = `<span class="pl-hint">prezzo attuale n/d</span>`;
       }
-      paidRow = `
-        <div class="pcard-paid">
-          <span class="qlab">Pagato/pz €</span>
-          <input class="paid-in" type="number" min="0" step="0.01" data-i="${i}" value="${paid != null ? paid : ""}" placeholder="—" title="Prezzo di acquisto unitario in €">
-        </div>
-        <div class="pcard-pl"><span class="qlab">P&amp;L</span>${pl}</div>`;
+      extraBlock = `
+        <div class="pcard-extra">
+          <div class="pcard-paid">
+            <span class="qlab">Pagato/pz €</span>
+            <input class="paid-in" type="number" min="0" step="0.01" data-i="${i}" value="${paid != null ? paid : ""}" placeholder="—" title="Prezzo di acquisto unitario in €">
+          </div>
+          <div class="pcard-pl"><span class="qlab">P&amp;L</span>${pl}</div>
+        </div>`;
+    } else {
+      extraBlock = `<div class="pcard-extra is-reserved" aria-hidden="true"><div class="pcard-paid"></div><div class="pcard-pl"></div></div>`;
     }
     return `
     <div class="pcard cd-clickable" data-card="${i}">
@@ -1580,7 +1596,7 @@
         <div class="pcard-qty">
           <span class="qlab">Quantità</span>
           ${qtyCtrl(it)}
-        </div>${paidRow}
+        </div>${extraBlock}
         <div class="pcard-foot">
           <div class="pcard-actions">
             <button class="act coll ${b === 'coll' ? 'on' : ''}" data-act="coll" data-i="${i}" title="Nella collezione">✓</button>
