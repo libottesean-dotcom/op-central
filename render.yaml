@@ -32,18 +32,3 @@ services:
         value: 10000
       - key: HOST
         value: 0.0.0.0
-
-  # Cron esterno backup: alle 05:35 Roma chiama GitHub se la pipeline non è partita
-  - type: cron
-    name: op-central-daily-cron
-    runtime: node
-    schedule: "35 3 * * *"
-    buildCommand: npm install
-    startCommand: node optcg_cron_trigger.mjs
-    envVars:
-      - key: GITHUB_REPOSITORY
-        value: libottesean-dotcom/op-central
-      - key: CRON_SOURCE
-        value: render-cron
-      - key: CRON_DISPATCH_TOKEN
-        sync: false
