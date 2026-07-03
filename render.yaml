@@ -39,7 +39,7 @@ services:
     runtime: node
     schedule: "35 3 * * *"
     buildCommand: npm install
-    startCommand: node scripts/trigger-gh-daily.mjs
+    startCommand: node optcg_cron_trigger.mjs
     envVars:
       - key: GITHUB_REPOSITORY
         value: libottesean-dotcom/op-central
