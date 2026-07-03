@@ -25,6 +25,10 @@ const keyOf = (set, code, ver) => `${String(set || "").replace(/-/g, "")}|${code
 const EXTRA_CM_IDS = new Set(
   Object.values(CMMAP).filter(e => e.extra && e.en_id).map(e => String(e.en_id)),
 );
+// extra watchlist: stesso set|code|ver → non emettere anche la copia tcggo
+const EXTRA_KEYS = new Set(
+  Object.values(CMMAP).filter(e => e.extra).map(e => keyOf(e.set, e.code, e.ver)),
+);
 
 // ---- Storico prezzi REALE (snapshot giornalieri di optcg_history.mjs) ----
 // optcg_history/YYYY-MM-DD.json -> per ogni prodotto una serie [{d, p}] (p = trend,
@@ -256,12 +260,25 @@ const jpTwinInfo = new Map(); // jp_id -> { ver, rarity }
   }
 }
 
+// stesso code+ver+lang: preferisci record con cm_id (evita DON duplicati tcggo)
+keptCards.sort((a, b) => {
+  const sk = k => `${normSet(k.c.set)}|${k.c.code}|${k.c.version || ""}|${isJP(k.c) ? "JP" : "EN"}`;
+  const ka = sk(a), kb = sk(b);
+  if (ka !== kb) return ka.localeCompare(kb);
+  return (b.c.cm_id ? 1 : 0) - (a.c.cm_id ? 1 : 0);
+});
+
 let singles = 0, singlesJP = 0, pricedEN = 0, jpEmitted = 0;
 const jpEmittedIds = new Set(); // guardia: un prodotto JP compare UNA volta sola nel catalogo
+const emittedSingles = new Set(); // dedupe DON / doppioni tcggo (code+ver+lang)
 for (const { c, price } of keptCards) {
   const cm = c.cm || {};
   const jp = isJP(c);
   if (jp) singlesJP++;
+  if (!jp && EXTRA_KEYS.has(keyOf(c.set, c.code, c.version))) continue;
+  const singleKey = `${normSet(c.set)}|${c.code}|${c.version || ""}|${jp ? "JP" : "EN"}`;
+  if (emittedSingles.has(singleKey)) continue;
+  emittedSingles.add(singleKey);
   const mapEntry = CMMAP[keyOf(c.set, c.code, c.version)];
   const item = {
     set: normSet(c.set),
@@ -342,17 +359,22 @@ for (const { c, price } of keptCards) {
 let boxes = 0, cases = 0;
 for (const p of products) {
   const name = p.name || "";
-  const isCase = /case/i.test(name);
+  const isSleevedCase = /sleeved.*pack.*case/i.test(name);
+  const isBoosterCase = /booster box case/i.test(name);
+  const isCase = isSleevedCase || isBoosterCase || (/case/i.test(name) && !/booster box/i.test(name));
   const isBox = /booster box/i.test(name) && !isCase;
   if (!isCase && !isBox) continue; // solo box e case
   if (/^ST\d/.test(normSet(p.set))) continue; // NIENTE prodotti Starter Deck
   const set = normSet(p.set);
+  const isPreErrata = /pre-errata/i.test(name);
+  const codeSuffix = isBox ? (isPreErrata ? "BOX-PE" : "BOX") : (isSleevedCase ? "SCASE" : "CASE");
   const sealedItem = {
     set,
-    code: `${set}-${isCase ? "CASE" : "BOX"}`,
+    code: `${set}-${codeSuffix}`,
     char: name,
     type: isCase ? "Case" : "Box",
     rarity: "",
+    lang: "EN",
     cm: p.cm_low ?? null,
     t30: null, t14: null, t7: null,
     ebay: null,
