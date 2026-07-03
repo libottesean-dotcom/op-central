@@ -1,7 +1,7 @@
 // Scarica rarità EN + JP da Limitless TCG. Output: optcg_rarity.json
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import {
-  parseLimitlessHtml, entriesToMaps, limitlessKey, cleanRar, limitlessCodeOf,
+  parseLimitlessHtml, entriesToMaps, limitlessKey, cleanRar, limitlessCodeOf, isReprintCard,
 } from "./optcg_rarity_lib.mjs";
 
 const OUT = "optcg_rarity.json";
@@ -59,9 +59,15 @@ function mergePrints(code, prints, lang, entries, byCodeVer) {
   Object.assign(byCodeVer, maps.byCodeVer);
 }
 
-function attachCmIdsFromPrices(PRICES, byCodeVer, entries, byCmId) {
+function attachCmIdsFromPrices(PRICES, byCodeVer, entries, byCmId, tcggoByCmId) {
   for (const [id, rec] of Object.entries(PRICES)) {
     if (!rec?.name) continue;
+    const exp = (rec.expansion || "").toLowerCase();
+    // Prodotto in set speciali (25th, promo): rarità tcggo, non Leader/Alt-art del code base OPxx
+    if (/25th|promo|extra booster|event pack|prize|championship|tournament|unnumbered/.test(exp)) {
+      if (tcggoByCmId[id]) byCmId[id] = tcggoByCmId[id];
+      continue;
+    }
     const codeM = rec.name.match(/\((OP\d+-\d+|EB\d+-\d+|P-\d+|ST\d+-\d+|PRB\d+-\d+)\)/i);
     const verM = /\(V\.(\d+)\)/.exec(rec.name);
     if (!codeM) continue;
@@ -80,7 +86,8 @@ function attachEnCmIds(prints, cards, byCmId) {
       limitlessCodeOf(c) === p.code &&
       (c.version || null) === (p.ver || null) &&
       !/(^|-)JP\b/i.test(c.ccn || "") &&
-      !/(^|-)JP\b/i.test(c.numbered || ""),
+      !/(^|-)JP\b/i.test(c.numbered || "") &&
+      !isReprintCard(c),
     );
     if (raw?.cm_id) byCmId[String(raw.cm_id)] = p.rarity;
   }
@@ -268,7 +275,18 @@ for (const code of codes.filter(c => /^P-\d+$/.test(c))) {
 buildJpCmIds(byCodeVer, entries, byCmId);
 
 // Fonte autorevole per cm_id: V.n nel NOME prodotto Cardmarket (non version tcggo, può essere invertita)
-attachCmIdsFromPrices(PRICES, byCodeVer, entries, byCmId);
+const tcggoByCmId = {};
+for (const c of cards) {
+  if (c.cm_id == null) continue;
+  const r = cleanRar(c.rarity);
+  if (r) tcggoByCmId[String(c.cm_id)] = r;
+}
+attachCmIdsFromPrices(PRICES, byCodeVer, entries, byCmId, tcggoByCmId);
+for (const c of cards) {
+  if (c.cm_id == null || !isReprintCard(c)) continue;
+  const r = cleanRar(c.rarity);
+  if (r) byCmId[String(c.cm_id)] = r;
+}
 
 persist();
 

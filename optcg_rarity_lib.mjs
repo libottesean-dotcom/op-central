@@ -24,6 +24,11 @@ export const RLABEL = {
 
 export const cleanRar = r => RLABEL[r] || r || "";
 
+/** Reprint/promo tcggo (es. EB02 Anime 25th): rarità Limitless del code base non si applica. */
+export const isReprintCard = c =>
+  /25th|promo|extra booster|event pack|prize|championship|tournament|unnumbered/i.test(c?.setName || "")
+  || /^EB0/i.test(String(c?.set || ""));
+
 export const limitlessKey = (code, ver, lang = "EN") =>
   `${code}|${ver || ""}|${lang}`;
 

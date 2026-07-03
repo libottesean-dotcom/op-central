@@ -21,6 +21,10 @@ const RARITY_ENTRIES = RARITY_DB.entries || {};
 const RARITY_BY_CODE_VER = RARITY_DB.byCodeVer || {};
 const RARITY_BY_CMID = RARITY_DB.byCmId || {};
 const keyOf = (set, code, ver) => `${String(set || "").replace(/-/g, "")}|${code}|${ver || ""}`;
+// cm_id già coperti da EXTRA watchlist: evita doppioni (es. Enel OP05-098 EB02 + OP05)
+const EXTRA_CM_IDS = new Set(
+  Object.values(CMMAP).filter(e => e.extra && e.en_id).map(e => String(e.en_id)),
+);
 
 // ---- Storico prezzi REALE (snapshot giornalieri di optcg_history.mjs) ----
 // optcg_history/YYYY-MM-DD.json -> per ogni prodotto una serie [{d, p}] (p = trend,
@@ -185,6 +189,7 @@ for (const c of cards) {
   if (!c.code || !c.set) continue;
   if (/^ST\d/.test(normSet(c.set))) continue;
   if (c.rarity === "Common" || c.rarity === "Uncommon") continue;
+  if (c.cm_id != null && EXTRA_CM_IDS.has(String(c.cm_id))) continue;
   const cm = c.cm || {};
   const price = cm.it ?? cm.eu ?? cm.low ?? null;
   if (c.rarity === "DON!!" && price != null && price < MIN_PRICE) continue;
@@ -392,6 +397,8 @@ for (const e of Object.values(CMMAP)) {
     cmId: Number(e.en_id) || null,
   };
   applyPrices(x, rec, e.en_id);
+  if (e.rarity) x.rarity = cleanRar(e.rarity);
+  else if (x.cmId && RARITY_BY_CMID[String(x.cmId)]) x.rarity = RARITY_BY_CMID[String(x.cmId)];
   items.push(x);
   extras++;
 }
