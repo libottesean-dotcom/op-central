@@ -1,0 +1,64 @@
+# Backup se il cron GitHub alle 05:30 non parte (succede su repo nuovi / carico Actions).
+# Alle 06:00 Roma controlla se optcg-daily è già andato a buon fine oggi; altrimenti lo avvia.
+# Accetta anche repository_dispatch (cron-job.org, Render cron, script locale).
+name: OP Central — cron backup
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+      timezone: Europe/Rome
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verifica se serve avviare la pipeline
+        id: need
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: "optcg-daily.yml",
+              per_page: 20,
+            });
+            const okToday = data.workflow_runs.some(r => {
+              const d = new Date(r.created_at).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+              return d === today && r.status === "completed" && r.conclusion === "success";
+            });
+            const running = data.workflow_runs.some(r => {
+              const d = new Date(r.created_at).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+              return d === today && r.status === "in_progress";
+            });
+            if (okToday) {
+              core.setOutput("run", "false");
+              core.info(`Pipeline già completata oggi (${today}, ora Roma).`);
+            } else if (running) {
+              core.setOutput("run", "false");
+              core.info("Pipeline già in esecuzione.");
+            } else {
+              core.setOutput("run", "true");
+              core.info(`Nessun successo oggi (${today}) — avvio optcg-daily.`);
+            }
+
+      - name: Avvia optcg-daily
+        if: steps.need.outputs.run == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "optcg-daily.yml",
+              ref: "master",
+            });
+            core.info("Dispatched optcg-daily.yml");

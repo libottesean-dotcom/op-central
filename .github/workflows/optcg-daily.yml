@@ -2,9 +2,12 @@ name: OP Central — aggiornamento giornaliero
 
 on:
   schedule:
-    # 05:30 ora di Roma (CEST = UTC+2) → 03:30 UTC
-    - cron: "30 3 * * *"
+    # 05:30 ora di Roma (timezone-aware, gestisce DST)
+    - cron: "30 5 * * *"
+      timezone: Europe/Rome
   workflow_dispatch:
+  repository_dispatch:
+    types: [daily-run]
 
 permissions:
   contents: write
