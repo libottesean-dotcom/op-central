@@ -191,7 +191,7 @@ const refPrice = rec => {
 const keptCards = [];
 for (const c of cards) {
   if (!c.code || !c.set) continue;
-  if (/^ST\d/.test(normSet(c.set))) continue;
+  if (/^ST\d/.test(normSet(c.set)) || /^ST\d/i.test(String(c.code))) continue;
   if (c.rarity === "Common" || c.rarity === "Uncommon") continue;
   if (c.cm_id != null && EXTRA_CM_IDS.has(String(c.cm_id))) continue;
   const cm = c.cm || {};
@@ -200,12 +200,16 @@ for (const c of cards) {
   keptCards.push({ c, price });
 }
 
-const rarityOfCard = c => {
+const rarityOfCard = (c, url = null) => {
   const lang = isJP(c) ? "JP" : "EN";
   const lk = limitlessCodeOf(c) || c.code;
-  return lookupRarity(lk, c.version, c.cm_id, lang)
-    || lookupRarity(c.code, c.version, c.cm_id, lang)
-    || cleanRar(c.rarity);
+  const fromLimitless = lookupRarity(lk, c.version, c.cm_id, lang, url)
+    || lookupRarity(c.code, c.version, c.cm_id, lang, url);
+  if (fromLimitless) return fromLimitless;
+  // tcggo solo V.1 / senza versione — V.2+ senza Limitless non si indovina (Alt-art ≠ base)
+  if (c.version && c.version !== "V.1") return null;
+  const tcg = cleanRar(c.rarity);
+  return tcg || null;
 };
 
 // pass 2: gemelli JP — ver dal nome prodotto JP; rarità dalla versione EN omologa (V.n)
@@ -279,6 +283,8 @@ for (const { c, price } of keptCards) {
   const singleKey = `${normSet(c.set)}|${c.code}|${c.version || ""}|${jp ? "JP" : "EN"}`;
   if (emittedSingles.has(singleKey)) continue;
   emittedSingles.add(singleKey);
+  const rarity = rarityOfCard(c);
+  if (!rarity) continue;
   const mapEntry = CMMAP[keyOf(c.set, c.code, c.version)];
   const item = {
     set: normSet(c.set),
@@ -286,7 +292,7 @@ for (const { c, price } of keptCards) {
     ver: c.version || null,     // distingue le versioni della stessa carta
     char: c.name,
     type: "Carta",
-    rarity: rarityOfCard(c),
+    rarity,
     lang: jp ? "JP" : "EN",
     cm: price,
     t30: cm.a30 ?? null,
@@ -316,6 +322,9 @@ for (const { c, price } of keptCards) {
     const urlRarity = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url);
     if (urlRarity) item.rarity = urlRarity;
   }
+  // coerenza finale: se Limitless dice altro, vince Limitless
+  const finalR = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url);
+  if (finalR) item.rarity = finalR;
   items.push(item);
   singles++;
 
