@@ -399,11 +399,40 @@ for (const { c, price } of keptCards) {
     }
     const jpFinal = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url, jpItem.set);
     if (jpFinal) jpItem.rarity = cleanRar(jpFinal);
-    else if (!jpItem.rarity) continue;
+    else if (!jpItem.rarity) jpItem.rarity = item.rarity;
     if (BANNED_RARITIES.has(jpItem.rarity)) continue;
     items.push(jpItem);
     jpEmitted++; singlesJP++;
   }
+}
+
+// pass 3: gemelli JP mancanti (EN già emesse, jp_id in cmmap ma non ancora in catalogo)
+for (const enItem of items.filter(it => it.type === "Carta" && it.lang === "EN")) {
+  const mapEntry = CMMAP[keyOf(enItem.set, enItem.code, enItem.ver)];
+  if (!mapEntry?.jp_id || jpEmittedIds.has(mapEntry.jp_id)) continue;
+  if (items.some(it => it.lang === "JP" && String(it.cmId) === String(mapEntry.jp_id))) continue;
+  jpEmittedIds.add(mapEntry.jp_id);
+  const jpRec = PRICES[mapEntry.jp_id] || {};
+  const jpInfo = jpTwinInfo.get(mapEntry.jp_id) || {
+    ver: parseVerFromName(jpRec.name) || enItem.ver,
+    rarity: enItem.rarity,
+  };
+  const jpItem = {
+    ...enItem,
+    lang: "JP",
+    ver: jpInfo.ver,
+    rarity: jpInfo.rarity || enItem.rarity,
+    cm: null, t30: null, t14: null, t7: null, target: 0,
+    trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
+    note: (enItem.note || "").replace(/ · V\.\d+$/, "") + " (JP)" + (jpInfo.ver ? " · " + jpInfo.ver : ""),
+    url: bestCmUrl(jpRec, jpSingleUrl(jpRec.expansion, enItem.note, enItem.char, enItem.code, jpInfo.ver)),
+    img: jpRec.image_url || `https://cardmarketapi.com/cards/${mapEntry.jp_id}/image`,
+    cmId: Number(mapEntry.jp_id) || null,
+  };
+  if (jpRec.name || jpRec.from != null) applyPrices(jpItem, jpRec.name ? jpRec : null, mapEntry.jp_id);
+  if (!jpItem.rarity || BANNED_RARITIES.has(jpItem.rarity)) continue;
+  items.push(jpItem);
+  jpEmitted++; singlesJP++;
 }
 
 // ---- BOX / CASE (incl. OP17) ----
