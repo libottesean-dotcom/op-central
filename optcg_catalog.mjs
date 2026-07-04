@@ -121,9 +121,9 @@ const codeVerFromUrl = url => {
   return code ? { code, ver: v ? `V.${v[1]}` : null } : null;
 };
 
-const lookupRarity = (code, ver, cmId, lang, url) => {
+const lookupRarity = (code, ver, cmId, lang, url, set = null) => {
   if (cmId != null && EXTRA_RARITY_BY_CMID[String(cmId)]) return EXTRA_RARITY_BY_CMID[String(cmId)];
-  if (cmId != null && RARITY_BY_CMID[String(cmId)]) return RARITY_BY_CMID[String(cmId)];
+
   const tryCode = (c, v) => {
     if (!c) return null;
     const cv = `${c}|${v || ""}`;
@@ -133,21 +133,51 @@ const lookupRarity = (code, ver, cmId, lang, url) => {
     if (RARITY_ENTRIES[lk]) return RARITY_ENTRIES[lk];
     return null;
   };
-  let r = tryCode(code, ver);
-  if (r) return r;
-  const fromUrl = codeVerFromUrl(url);
-  if (fromUrl) r = tryCode(fromUrl.code, fromUrl.ver ?? ver);
-  return r;
+
+  let fromLim = tryCode(code, ver);
+  if (!fromLim && url) {
+    const fromUrl = codeVerFromUrl(url);
+    if (fromUrl) fromLim = tryCode(fromUrl.code, fromUrl.ver ?? ver);
+  }
+
+  const fromCm = cmId != null ? RARITY_BY_CMID[String(cmId)] : null;
+  const fromTcg = set ? TCGGO_RARITY.get(`${normSet(set)}|${code}|${ver || ""}|${lang}`) : null;
+
+  // cm_id condiviso tra V.n (bug tcggo PRB01): ver vince via tcggo
+  if (fromTcg && fromCm && fromTcg !== fromCm) return fromTcg;
+  // Limitless vs tcggo: numerazione V.n a volte diverge (OP12) o EB03 SP non in Limitless
+  if (fromLim && fromTcg && fromTcg !== fromLim) {
+    if (tier(fromTcg) > tier(fromLim)) return fromTcg;
+    if (tier(fromLim) > tier(fromTcg) && fromTcg === "Rare") return fromLim;
+    return fromTcg;
+  }
+  if (fromLim) return fromLim;
+  if (fromCm) return fromCm;
+  return null;
 };
 
 const normSet = s => (s || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase(); // "OP-16"->"OP16"
+const isJP = c => /(-JP\b|\bJP\b)/i.test(c.ccn || "") || /(-JP\b|\bJP\b)/i.test(c.numbered || "");
+
+// rarità tcggo per set|code|ver — risolve conflitti Limitless/cm_id
+const RARITY_TIER = {
+  DON: 0, Rare: 1, Leader: 2, "Super Rare": 3, "Secret Rare": 4,
+  "Alt-art": 5, "Special Rare": 6, SP: 6, "Manga Rare": 7, "Treasure Rare": 8, Promo: 3,
+};
+const tier = r => RARITY_TIER[r] ?? 2;
+const TCGGO_RARITY = new Map();
+for (const c of cards) {
+  if (!c.code || !c.set) continue;
+  const r = cleanRar(c.rarity);
+  if (!r || BANNED_RARITIES.has(r)) continue;
+  TCGGO_RARITY.set(`${normSet(c.set)}|${c.code}|${c.version || ""}|${isJP(c) ? "JP" : "EN"}`, r);
+}
 
 const items = [];
 
 // ---- SINGOLE (coppia EN + JP) ----
 // UNA voce per versione reale (V.1..V.n), NIENTE doppioni.
 // Lingua ricavata dal marchio "-JP" nei dati veri (card_code_number / name_numbered) quando presente.
-const isJP = c => /(-JP\b|\bJP\b)/i.test(c.ccn || "") || /(-JP\b|\bJP\b)/i.test(c.numbered || "");
 
 // URL della versione JP (prodotto Cardmarket separato). L'espansione viene presa
 // dal campo `expansion` VERO restituito dall'API per il prodotto JP (es. "Carrying
@@ -212,8 +242,8 @@ for (const c of cards) {
 const rarityOfCard = (c, url = null) => {
   const lang = isJP(c) ? "JP" : "EN";
   const lk = limitlessCodeOf(c) || c.code;
-  const fromLimitless = lookupRarity(lk, c.version, c.cm_id, lang, url)
-    || lookupRarity(c.code, c.version, c.cm_id, lang, url);
+  const fromLimitless = lookupRarity(lk, c.version, c.cm_id, lang, url, c.set)
+    || lookupRarity(c.code, c.version, c.cm_id, lang, url, c.set);
   if (fromLimitless) return fromLimitless;
   // tcggo solo V.1 / senza versione — V.2+ senza Limitless non si indovina (Alt-art ≠ base)
   if (c.version && c.version !== "V.1") return null;
@@ -328,11 +358,10 @@ for (const { c, price } of keptCards) {
   if (applyPrices(item, enRec, enId)) pricedEN++;
   if (enId && RARITY_BY_CMID[enId]) item.rarity = RARITY_BY_CMID[enId];
   else {
-    const urlRarity = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url);
+    const urlRarity = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url, item.set);
     if (urlRarity) item.rarity = urlRarity;
   }
-  // coerenza finale: Limitless vince; senza fonte Limitless non si emette (salvo extra sotto)
-  const finalR = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url);
+  const finalR = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url, item.set);
   if (finalR) item.rarity = cleanRar(finalR);
   else continue;
   if (BANNED_RARITIES.has(item.rarity)) continue;
@@ -364,10 +393,10 @@ for (const { c, price } of keptCards) {
     applyPrices(jpItem, PRICES[mapEntry.jp_id], mapEntry.jp_id);
     if (jpItem.cmId && RARITY_BY_CMID[String(jpItem.cmId)]) jpItem.rarity = RARITY_BY_CMID[String(jpItem.cmId)];
     else {
-      const jpUrlRarity = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url);
+      const jpUrlRarity = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url, jpItem.set);
       if (jpUrlRarity) jpItem.rarity = cleanRar(jpUrlRarity);
     }
-    const jpFinal = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url);
+    const jpFinal = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url, jpItem.set);
     if (jpFinal) jpItem.rarity = cleanRar(jpFinal);
     else continue;
     if (BANNED_RARITIES.has(jpItem.rarity)) continue;
@@ -446,7 +475,7 @@ for (const e of Object.values(CMMAP)) {
   if (e.rarity) x.rarity = cleanRar(e.rarity);
   else if (x.cmId && RARITY_BY_CMID[String(x.cmId)]) x.rarity = RARITY_BY_CMID[String(x.cmId)];
   else {
-    const xr = lookupRarity(x.code, x.ver, x.cmId, x.lang, x.url);
+    const xr = lookupRarity(x.code, x.ver, x.cmId, x.lang, x.url, x.set);
     if (xr) x.rarity = cleanRar(xr);
   }
   if (!x.rarity || BANNED_RARITIES.has(x.rarity)) continue;

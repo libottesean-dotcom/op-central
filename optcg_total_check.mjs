@@ -1,34 +1,50 @@
 #!/usr/bin/env node
 // Check TOTALE: tcggo grezzo, catalog.js, rarità Limitless, set, filtri, link CM.
 import { readFileSync, existsSync } from "node:fs";
-import { cleanRar } from "./optcg_rarity_lib.mjs";
+import { cleanRar, limitlessKey } from "./optcg_rarity_lib.mjs";
 
 const FAIL = [];
 const WARN = [];
 const fail = (m) => FAIL.push(m);
 const warn = (m) => WARN.push(m);
 
-// ---- regole catalogo (allineate a optcg_catalog.mjs) ----
-const ALLOWED_RARITIES = new Set([
-  "Leader", "Super Rare", "Secret Rare", "Special Rare", "Rare",
-  "Alt-art", "Manga Rare", "Treasure Rare", "SP", "SP CARD", "Promo", "DON", "",
-]);
-const BANNED_RAW = new Set(["Common", "Uncommon"]);
+const cards = Object.values(JSON.parse(readFileSync("optcg_cards_raw.json", "utf8")));
 const CMMAP = JSON.parse(readFileSync("optcg_cmmap.json", "utf8")).entries || {};
+const normSet = s => (s || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+const isJP = c => /(-JP\b|\bJP\b)/i.test(c.ccn || "") || /(-JP\b|\bJP\b)/i.test(c.numbered || "");
+const RARITY_TIER = {
+  DON: 0, Rare: 1, Leader: 2, "Super Rare": 3, "Secret Rare": 4,
+  "Alt-art": 5, "Special Rare": 6, SP: 6, "Manga Rare": 7, "Treasure Rare": 8, Promo: 3,
+};
+const tier = r => RARITY_TIER[r] ?? 2;
+const TCGGO_RARITY = new Map();
+for (const c of cards) {
+  const r = cleanRar(c.rarity);
+  if (!r || r === "Common" || r === "Uncommon") continue;
+  TCGGO_RARITY.set(`${normSet(c.set)}|${c.code}|${c.version || ""}|${isJP(c) ? "JP" : "EN"}`, r);
+}
 
-function lookupRarity(it, db) {
+// stessa logica di optcg_catalog.mjs lookupRarity
+function expectedRarity(it, db) {
   const { byCmId, byCodeVer, entries } = db;
   const lang = it.lang || "EN";
   if (it.cmId != null) {
     const ex = Object.values(CMMAP).find(e => e.extra && String(e.en_id) === String(it.cmId));
     if (ex?.rarity) return cleanRar(ex.rarity);
   }
-  if (it.cmId != null && byCmId?.[String(it.cmId)]) return byCmId[String(it.cmId)];
   const cv = `${it.code}|${it.ver || ""}`;
-  if (lang === "JP" && byCodeVer?.[`${cv}|JP`]) return byCodeVer[`${cv}|JP`];
-  if (byCodeVer?.[cv]) return byCodeVer[cv];
-  const lk = `${it.code}|${it.ver || ""}|${lang}`;
-  if (entries?.[lk]) return entries[lk];
+  let fromLim = lang === "JP" && byCodeVer?.[`${cv}|JP`] ? byCodeVer[`${cv}|JP`] : byCodeVer?.[cv];
+  if (!fromLim) fromLim = entries?.[`${it.code}|${it.ver || ""}|${lang}`];
+  const fromCm = it.cmId != null ? byCmId?.[String(it.cmId)] : null;
+  const fromTcg = TCGGO_RARITY.get(`${normSet(it.set)}|${it.code}|${it.ver || ""}|${lang}`);
+  if (fromTcg && fromCm && fromTcg !== fromCm) return fromTcg;
+  if (fromLim && fromTcg && fromTcg !== fromLim) {
+    if (tier(fromTcg) > tier(fromLim)) return fromTcg;
+    if (tier(fromLim) > tier(fromTcg) && fromTcg === "Rare") return fromLim;
+    return fromTcg;
+  }
+  if (fromLim) return fromLim;
+  if (fromCm) return fromCm;
   return null;
 }
 
@@ -59,6 +75,12 @@ console.log(`  voci totali: ${ITEMS.length}`);
 const carte = ITEMS.filter(i => i.type === "Carta");
 const sealed = ITEMS.filter(i => i.type === "Box" || i.type === "Case");
 
+const ALLOWED_RARITIES = new Set([
+  "Leader", "Super Rare", "Secret Rare", "Special Rare", "Rare",
+  "Alt-art", "Manga Rare", "Treasure Rare", "SP", "SP CARD", "Promo", "DON", "",
+]);
+const BANNED_RAW = new Set(["Common", "Uncommon"]);
+
 // === 3. FILTRI RARITÀ / SET ===
 console.log("\n=== 3. FILTRI (solo rarità ammesse, no Common/Uncommon/ST) ===");
 let badRarity = 0, badSet = 0, stLeak = 0, commonLeak = 0;
@@ -78,11 +100,11 @@ if (badRarity) fail(`Rarità non ammessa: ${badRarity}`);
 if (badSet > 5) warn(`Possibile set/code mismatch: ${badSet}`);
 
 // === 4. RARITÀ vs LIMITLESS ===
-console.log("\n=== 4. RARITÀ vs LIMITLESS ===");
+console.log("\n=== 4. RARITÀ (logica catalogo) ===");
 let rMatch = 0, rWrong = 0, rNoSource = 0, rTcggoOnly = 0;
 const wrongSamples = [];
 for (const it of carte) {
-  const truth = lookupRarity(it, db);
+  const truth = expectedRarity(it, db);
   if (truth) {
     if (it.rarity === truth) rMatch++;
     else { rWrong++; if (wrongSamples.length < 15) wrongSamples.push(`${it.set} ${it.code} ${it.ver || ""} cat=${it.rarity} ok=${truth}`); }
@@ -92,13 +114,13 @@ for (const it of carte) {
     else rTcggoOnly++;
   }
 }
-console.log(`  match Limitless: ${rMatch}`);
+console.log(`  match atteso: ${rMatch}`);
 console.log(`  errati (con fonte): ${rWrong}`);
 console.log(`  solo tcggo V.1: ${rTcggoOnly}`);
 console.log(`  senza fonte: ${rNoSource}`);
 if (rTcggoOnly) warn(`V.1 solo tcggo (attesi 0 con filtro Limitless): ${rTcggoOnly}`);
 if (rNoSource) fail(`Senza fonte rarità: ${rNoSource}`);
-if (rWrong) { fail(`${rWrong} rarità errate vs Limitless`); wrongSamples.forEach(s => console.log("   ·", s)); }
+if (rWrong) { fail(`${rWrong} rarità errate vs atteso`); wrongSamples.forEach(s => console.log("   ·", s)); }
 
 // === 5. LINK / CAMPI ===
 console.log("\n=== 5. LINK CARDMARKET & CAMPI ===");
