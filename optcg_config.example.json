@@ -9,7 +9,8 @@
     "hard_cap_date": "",
     "hard_cap_today": 0,
     "daily_cap": 1950,
-    "map_reserve": 500
+    "map_reserve": 500,
+    "refresh_days": { "1": 1, "2": 1, "3": 2, "4": 3 }
   },
   "telegram": {
     "enabled": false,

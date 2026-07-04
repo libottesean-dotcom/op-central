@@ -35,7 +35,7 @@ const { singles, sealed } = buildRawItems();
 const today = new Date().toISOString().slice(0, 10);
 const B = CONFIG.budget || {};
 const cap = (B.hard_cap_date === today && B.hard_cap_today) ? B.hard_cap_today : (B.daily_cap ?? 1800);
-const reserve = B.map_reserve ?? 500; // richieste lasciate libere per optcg_prices.mjs
+const reserve = Number(process.env.MAP_RESERVE ?? B.map_reserve ?? 500);
 const guard = new BudgetGuard(cap - reserve);
 const u0 = await guard.init();
 console.log(`[map] piano=${u0.plan} usate oggi=${u0.used_today}/${u0.daily_limit} · cap mapping=${cap - reserve} (riserva prezzi=${reserve})`);
@@ -74,8 +74,8 @@ const expansionMatches = (setName, expansion) => {
   if (!ex) return false;
   return sn === ex || sn.includes(ex) || ex.includes(sn);
 };
-// Cardmarket marca i prodotti JP con "(Non-English)" oppure "(Japanese)" nell'expansion
-const isJPExp = exp => /\((non-english|japanese)\)/i.test(exp || "");
+// Cardmarket marca i prodotti JP con "(Non-English)", "(Japanese)" o "(Asia Region Legal)"
+const isJPExp = exp => /\((non-english|japanese|asia region legal)\)/i.test(exp || "");
 const stripJPMark = exp => (exp || "").replace(/\((non-english|japanese)\)/i, "");
 
 // ---- gruppi di ricerca: una ricerca per code; risultati distribuiti per expansion==setName ----
@@ -85,19 +85,19 @@ for (const it of singles) {
   byCode.get(it.code).push(it);
 }
 
-// un code va cercato se qualche sua versione non ha en_id o non ha jp_id risolto/escluso
-const codeNeedsSearch = code => {
-  if (map.codes_done[code]) return false;
-  return byCode.get(code).some(it => {
-    const e = map.entries[it.key];
-    return !e?.en_id || e.jp_id === undefined;
-  });
-};
+// un code va cercato se manca en_id, jp_id non risolto, o jp_id null (retry finché non trovato)
+const codeNeedsSearch = code => byCode.get(code).some(it => {
+  const e = map.entries[it.key];
+  if (!e?.en_id) return !map.codes_done[code];
+  if (e.kind === "single" && e.jp_id == null) return true;
+  return e.jp_id === undefined;
+});
 
 // priorità: tier minimo tra le versioni del code
 const codeTier = code => Math.min(...byCode.get(code).map(tierOf));
+
 const queue = [...byCode.keys()].filter(codeNeedsSearch).sort((a, b) => codeTier(a) - codeTier(b));
-const maxTier = Number(process.env.MAP_MAX_TIER || 4); // opzionale: limita ai tier bassi
+const maxTier = Number(process.env.MAP_MAX_TIER || 4);
 const queueT = queue.filter(c => codeTier(c) <= maxTier);
 console.log(`[map] code da cercare: ${queueT.length} (tier<=${maxTier}) su ${byCode.size} totali`);
 
@@ -123,14 +123,12 @@ function assignFromResults(code, results) {
     const setLabel = items[0].setName;
     let enCand = results.filter(r => !isJPExp(r.expansion) && expansionMatches(setLabel, r.expansion))
       .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
-    let jpCand = results.filter(r => isJPExp(r.expansion) && expansionMatches(setLabel, r.expansion))
+    // JP: accoppiamento per code carta (+ versione), NON per nome set EN
+    // (es. EN "The Azure Sea's Seven" ↔ JP "Egghead Crisis (Asia Region Legal)")
+    let jpCand = results.filter(r => isJPExp(r.expansion) && (r.name || "").includes(code))
       .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
     if (!enCand.length) {
       enCand = results.filter(r => !isJPExp(r.expansion) && (r.name || "").includes(code))
-        .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
-    }
-    if (!jpCand.length) {
-      jpCand = results.filter(r => isJPExp(r.expansion) && (r.name || "").includes(code))
         .map(r => ({ id: String(r.id), name: r.name })).sort((a, b) => Number(a.id) - Number(b.id));
     }
 
@@ -156,10 +154,11 @@ function assignFromResults(code, results) {
       const pick = pickForVer(enCand, usedEn, it.ver);
       if (pick) { e.en_id = pick.id; e.en_name = pick.name; e.en_src = "search"; usedEn.add(pick.id); enFilled++; }
     }
-    // JP: stesso criterio
-    const usedJp = new Set();
+    // JP: stesso criterio (salta se già mappato)
+    const usedJp = new Set(Object.values(map.entries).map(e => e.jp_id).filter(Boolean));
     for (const it of sorted) {
       const e = map.entries[it.key];
+      if (e.jp_id) continue;
       const pick = pickForVer(jpCand, usedJp, it.ver);
       if (pick) { e.jp_id = pick.id; e.jp_name = pick.name; usedJp.add(pick.id); jpFound++; }
       else e.jp_id = null;
@@ -171,6 +170,59 @@ function assignFromResults(code, results) {
   }
   map.codes_done[code] = true;
 }
+
+// ---- Fase B0: sealed JP (poche ricerche, prima delle singole) ----
+const sealedKind = name => {
+  if (/sleeved.*pack.*case/i.test(name || "")) return "sleeved";
+  if (/pre-errata/i.test(name || "")) return "preerrata";
+  if (/booster box case/i.test(name || "")) return "boxcase";
+  if (/booster box/i.test(name || "")) return "box";
+  return "other";
+};
+const sealedSearchCache = new Map();
+
+async function searchSealedSet(set) {
+  if (!sealedSearchCache.has(set)) {
+    if (!(await guard.allow())) return null;
+    const res = await apiGet(`/api/v1/search?q=${encodeURIComponent(set + " Booster Box")}&game=one-piece&limit=50`);
+    guard.count();
+    searches++;
+    sealedSearchCache.set(set, res.results || []);
+  }
+  return sealedSearchCache.get(set);
+}
+
+function pickSealedJp(enName, results) {
+  const kind = sealedKind(enName);
+  const jp = (results || []).filter(r => isJPExp(r.expansion));
+  const match = r => {
+    const n = (r.name || "").toLowerCase();
+    if (kind === "box") return n.includes("booster box") && !n.includes("case");
+    if (kind === "boxcase") return n.includes("case") && (n.includes("booster box") || n.includes("12x"));
+    if (kind === "sleeved") return n.includes("sleeved") && n.includes("case");
+    if (kind === "preerrata") return n.includes("pre-errata") || n.includes("pre errata");
+    return n.includes("case") ? n.includes("case") : n.includes("booster box");
+  };
+  const cands = jp.filter(match).sort((a, b) => Number(a.id) - Number(b.id));
+  return cands[0] || null;
+}
+
+let sealedJp = 0;
+for (const it of sealed) {
+  const e = map.entries[it.key];
+  if (!e?.en_id || e.jp_id) continue;
+  if (stopped) break;
+  try {
+    const results = await searchSealedSet(it.set);
+    if (!results) { stopped = true; break; }
+    const pick = pickSealedJp(e.en_name || it.name, results);
+    if (pick) { e.jp_id = pick.id; e.jp_name = pick.name; sealedJp++; }
+    else { e.jp_id = null; map.notes.push(`SEALED ${it.set} ${it.kind}: nessun JP (${(results || []).length} risultati)`); }
+  } catch (err) {
+    console.log(`[map] ERRORE sealed ${it.set} ${it.kind}: ${err.message}`);
+  }
+}
+if (sealedJp) console.log(`[map] sealed jp_id trovati: ${sealedJp}`);
 
 // ---- Fase B: ricerche per le singole ----
 for (const code of queueT) {
@@ -210,8 +262,8 @@ for (const x of EXTRA_ITEMS) {
   }
 }
 
-// ---- Sealed: JP non mappato (prodotti JP separati, best effort futuro) ----
-for (const it of sealed) if (map.entries[it.key].jp_id === undefined) map.entries[it.key].jp_id = null;
+// sealed senza en_id: jp_id esplicitamente null
+for (const it of sealed) if (map.entries[it.key]?.jp_id === undefined) map.entries[it.key].jp_id = null;
 
 map.updated = new Date().toISOString();
 saveJson(MAP_FILE, map);

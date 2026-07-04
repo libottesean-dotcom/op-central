@@ -276,8 +276,11 @@ const jpTwinInfo = new Map(); // jp_id -> { ver, rarity }
       if (!jpId || seenJp.has(jpId)) continue;
       seenJp.add(jpId);
       const rec = PRICES[jpId];
-      if (!recCodeOk(rec, code)) continue;
-      jps.push({ id: jpId, ver: parseVerFromName(rec.name), price: refPrice(rec) });
+      jps.push({
+        id: jpId,
+        ver: recCodeOk(rec, code) ? parseVerFromName(rec.name) : null,
+        price: recCodeOk(rec, code) ? refPrice(rec) : null,
+      });
     }
     if (!jps.length) continue;
     for (const j of jps) {
@@ -368,29 +371,27 @@ for (const { c, price } of keptCards) {
   items.push(item);
   singles++;
 
-  // voce JP gemella: emessa solo se il prodotto JP è mappato E ha prezzi scaricati
-  // (stessa guardia sul code del prodotto). ver/rarity NON ereditate dall'EN:
-  // arrivano da jpTwinInfo (versione PROPRIA del prodotto JP + rarità per fascia
-  // di prezzo — vedi commento sopra al pass 2).
-  if (!jp && mapEntry?.jp_id && codeMatches(PRICES[mapEntry.jp_id]) && !jpEmittedIds.has(mapEntry.jp_id)) {
+  // voce JP gemella: emessa se mappata (prezzo opzionale — placeholder finché non scaricato)
+  if (!jp && mapEntry?.jp_id && !jpEmittedIds.has(mapEntry.jp_id)) {
     jpEmittedIds.add(mapEntry.jp_id);
-    const jpRec = PRICES[mapEntry.jp_id];
-    const jpInfo = jpTwinInfo.get(mapEntry.jp_id) || { ver: parseVerFromName(jpRec.name), rarity: "" };
+    const jpRec = PRICES[mapEntry.jp_id] || {};
+    const jpInfo = jpTwinInfo.get(mapEntry.jp_id) || {
+      ver: parseVerFromName(jpRec.name) || item.ver,
+      rarity: item.rarity,
+    };
     const jpItem = {
       ...item,
       lang: "JP",
       ver: jpInfo.ver,
-      rarity: jpInfo.rarity,
+      rarity: jpInfo.rarity || item.rarity,
       cm: null, t30: null, t14: null, t7: null, target: 0,
       trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
       note: `${c.setName || ""} (JP)${jpInfo.ver ? " · " + jpInfo.ver : ""}`.trim(),
       url: bestCmUrl(jpRec, jpSingleUrl(jpRec.expansion, c.setName, c.name, c.code, jpInfo.ver)),
-      // immagine del prodotto GIAPPONESE (grafica JP), non quella EN riciclata:
-      // l'URL immagine di cardmarketapi è pubblico e deterministico per product id
       img: jpRec.image_url || `https://cardmarketapi.com/cards/${mapEntry.jp_id}/image`,
       cmId: Number(mapEntry.jp_id) || null,
     };
-    applyPrices(jpItem, PRICES[mapEntry.jp_id], mapEntry.jp_id);
+    if (recCodeOk(jpRec, c.code)) applyPrices(jpItem, jpRec, mapEntry.jp_id);
     if (jpItem.cmId && RARITY_BY_CMID[String(jpItem.cmId)]) jpItem.rarity = RARITY_BY_CMID[String(jpItem.cmId)];
     else {
       const jpUrlRarity = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url, jpItem.set);
@@ -398,13 +399,10 @@ for (const { c, price } of keptCards) {
     }
     const jpFinal = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url, jpItem.set);
     if (jpFinal) jpItem.rarity = cleanRar(jpFinal);
-    else continue;
+    else if (!jpItem.rarity) continue;
     if (BANNED_RARITIES.has(jpItem.rarity)) continue;
-    if (jpItem.cm != null) {
-      jpItem.target = Math.round(jpItem.cm);
-      items.push(jpItem);
-      jpEmitted++; singlesJP++;
-    }
+    items.push(jpItem);
+    jpEmitted++; singlesJP++;
   }
 }
 
@@ -443,12 +441,31 @@ for (const p of products) {
   };
   // stesso criterio delle singole: cm_id proprio prima della mappa (i code SET-CASE
   // collidono tra "Booster Box Case" e "Sleeved Pack Case": prezzi distinti)
-  const sealedMap = CMMAP[keyOf(set, sealedItem.code, null)];
-  const sealedId = p.cm_id != null ? String(p.cm_id) : (sealedMap?.en_id || null);
+  const sealedMapEntry = Object.values(CMMAP).find(e => p.cm_id != null && String(e.en_id) === String(p.cm_id))
+    || CMMAP[keyOf(set, sealedItem.code, null)];
+  const sealedId = p.cm_id != null ? String(p.cm_id) : (sealedMapEntry?.en_id || null);
   const sealedRec = sealedId ? PRICES[sealedId] : null;
   if (applyPrices(sealedItem, sealedRec, sealedId)) pricedEN++;
   items.push(sealedItem);
   if (isCase) cases++; else boxes++;
+
+  // gemello JP box/case
+  if (sealedMapEntry?.jp_id) {
+    const jpRec = PRICES[sealedMapEntry.jp_id] || {};
+    const jpSealed = {
+      ...sealedItem,
+      lang: "JP",
+      cm: null, t30: null, t14: null, t7: null, target: 0,
+      trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
+      note: (p.setName || "") + " (JP)",
+      url: bestCmUrl(jpRec, sealedItem.url),
+      img: jpRec.image_url || `https://cardmarketapi.com/cards/${sealedMapEntry.jp_id}/image`,
+      cmId: Number(sealedMapEntry.jp_id) || null,
+    };
+    if (jpRec.name || jpRec.from != null) applyPrices(jpSealed, jpRec.name ? jpRec : null, sealedMapEntry.jp_id);
+    items.push(jpSealed);
+    if (isCase) cases++; else boxes++;
+  }
 }
 
 // ---- EXTRA WATCHLIST (promo/set speciali mappati via ricerca, fuori dai dati tcggo) ----
@@ -491,6 +508,6 @@ writeFileSync("catalog.js", header + "window.CATALOG_ITEMS = " + JSON.stringify(
 
 console.log(`Singole (versioni reali): ${singles} · di cui marcate JP: ${singlesJP}`);
 console.log(`Box: ${boxes} · Case: ${cases} · Extra watchlist: ${extras}`);
-console.log(`Prezzi API applicati (EN): ${pricedEN} · voci JP emesse dai prezzi API: ${jpEmitted}`);
+console.log(`Prezzi API applicati (EN): ${pricedEN} · voci JP emesse: ${jpEmitted}`);
 console.log(`TOTALE voci in catalog.js: ${items.length}`);
 console.log(`Set inclusi: ${[...new Set(items.map(i => i.set))].sort().join(", ")}`);
