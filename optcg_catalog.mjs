@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import {
   cmSearchUrl, singleSlugUrl, expansionSlug, urlFromCmRec, bestCmUrl,
-  sealedBoosterUrl, boosterBoxUrl,
+  sealedBoosterUrl, boosterBoxUrl, parseCmProductName,
 } from "./optcg_cmapi.mjs";
 import { cleanRar, limitlessKey, limitlessCodeOf } from "./optcg_rarity_lib.mjs";
 
@@ -188,6 +188,18 @@ const jpSingleUrl = (jpExpansion, setName, name, code, version) => {
   const exp = jpExpansion || (setName ? setName + " (Non-English)" : null);
   return exp ? singleSlugUrl(exp, name, code, version) : cmSearchUrl(code);
 };
+
+// L'endpoint cardmarketapi.com/cards/{id}/image risponde 404 finché il prodotto
+// non è stato fetchato almeno una volta via API (optcg_prices.mjs). Fino ad allora
+// mostriamo l'arte EN tcggo — stesso code, layout quasi identico.
+const jpCatalogImg = (jpRec, jpId, enImg) => {
+  if (jpRec?.image_url) return jpRec.image_url;
+  if (jpRec?.fetched_at && jpId) return `https://cardmarketapi.com/cards/${jpId}/image`;
+  return enImg || null;
+};
+
+const jpNameFromMap = (mapEntry, fallback) =>
+  parseCmProductName(mapEntry?.jp_name)?.name || fallback;
 
 // ---- Risoluzione versione/rarità dei GEMELLI JP (per code, non per versione EN) ----
 // Cardmarket versiona i prodotti JP INDIPENDENTEMENTE dall'EN: le sequenze JP sono
@@ -387,8 +399,8 @@ for (const { c, price } of keptCards) {
       cm: null, t30: null, t14: null, t7: null, target: 0,
       trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
       note: `${c.setName || ""} (JP)${jpInfo.ver ? " · " + jpInfo.ver : ""}`.trim(),
-      url: bestCmUrl(jpRec, jpSingleUrl(jpRec.expansion, c.setName, c.name, c.code, jpInfo.ver)),
-      img: jpRec.image_url || `https://cardmarketapi.com/cards/${mapEntry.jp_id}/image`,
+      url: bestCmUrl(jpRec, jpSingleUrl(jpRec.expansion, c.setName, jpNameFromMap(mapEntry, c.name), c.code, jpInfo.ver)),
+      img: jpCatalogImg(jpRec, mapEntry.jp_id, item.img),
       cmId: Number(mapEntry.jp_id) || null,
     };
     if (recCodeOk(jpRec, c.code)) applyPrices(jpItem, jpRec, mapEntry.jp_id);
@@ -425,8 +437,8 @@ for (const enItem of items.filter(it => it.type === "Carta" && it.lang === "EN")
     cm: null, t30: null, t14: null, t7: null, target: 0,
     trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
     note: (enItem.note || "").replace(/ · V\.\d+$/, "") + " (JP)" + (jpInfo.ver ? " · " + jpInfo.ver : ""),
-    url: bestCmUrl(jpRec, jpSingleUrl(jpRec.expansion, enItem.note, enItem.char, enItem.code, jpInfo.ver)),
-    img: jpRec.image_url || `https://cardmarketapi.com/cards/${mapEntry.jp_id}/image`,
+    url: bestCmUrl(jpRec, jpSingleUrl(jpRec.expansion, mapEntry.setName || enItem.note, jpNameFromMap(mapEntry, enItem.char), enItem.code, jpInfo.ver)),
+    img: jpCatalogImg(jpRec, mapEntry.jp_id, enItem.img),
     cmId: Number(mapEntry.jp_id) || null,
   };
   if (jpRec.name || jpRec.from != null) applyPrices(jpItem, jpRec.name ? jpRec : null, mapEntry.jp_id);
@@ -488,7 +500,7 @@ for (const p of products) {
       trend: null, avg30: null, avg5: null, available: null, listings: [], fetched_at: null,
       note: (p.setName || "") + " (JP)",
       url: bestCmUrl(jpRec, sealedItem.url),
-      img: jpRec.image_url || `https://cardmarketapi.com/cards/${sealedMapEntry.jp_id}/image`,
+      img: jpCatalogImg(jpRec, sealedMapEntry.jp_id, sealedItem.img),
       cmId: Number(sealedMapEntry.jp_id) || null,
     };
     if (jpRec.name || jpRec.from != null) applyPrices(jpSealed, jpRec.name ? jpRec : null, sealedMapEntry.jp_id);
