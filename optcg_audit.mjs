@@ -1,5 +1,8 @@
 // Audit completo catalog.js — link Cardmarket, campi, rarità, set, prezzi, doppioni.
 import { readFileSync, existsSync } from "node:fs";
+import { expectedRarity, loadRarityContext } from "./optcg_rarity_lookup.mjs";
+
+loadRarityContext();
 
 const src = readFileSync("catalog.js", "utf8");
 const window = {};
@@ -55,20 +58,17 @@ for (const it of ITEMS) {
   seen.set(k, it);
 }
 
-// rarità EN vs Limitless
+// rarità vs atteso (Limitless + tcggo + cm_id)
 const cards = ITEMS.filter(c => c.type === "Carta");
-let enRarityErr = 0, jpRarityErr = 0;
+let enRarityErr = 0, jpRarityErr = 0, noSource = 0;
 const enBad = [], jpBad = [];
-for (const it of cards.filter(c => c.lang === "EN" && c.ver)) {
-  const truth = it.cmId && RARITY_DB.byCmId?.[String(it.cmId)]
-    ? RARITY_DB.byCmId[String(it.cmId)]
-    : (RARITY_DB.byCodeVer?.[`${it.code}|${it.ver}`] || RARITY_DB.entries?.[`${it.code}|${it.ver}|EN`]);
-  if (truth && it.rarity && it.rarity !== truth) { enRarityErr++; if (enBad.length < 10) enBad.push(`${it.code} ${it.ver}: cat=${it.rarity} limitless=${truth}`); }
-}
-for (const it of cards.filter(c => c.lang === "JP")) {
-  if (!it.cmId) continue;
-  const truth = RARITY_DB.byCmId?.[String(it.cmId)];
-  if (truth && it.rarity && it.rarity !== truth) { jpRarityErr++; if (jpBad.length < 10) jpBad.push(`${it.code} ${it.ver || ""}: cat=${it.rarity} limitless=${truth}`); }
+for (const it of cards) {
+  const truth = expectedRarity(it, RARITY_DB);
+  if (!truth) { noSource++; continue; }
+  if (it.rarity !== truth) {
+    if (it.lang === "JP") { jpRarityErr++; if (jpBad.length < 10) jpBad.push(`${it.code} ${it.ver || ""}: cat=${it.rarity} att=${truth}`); }
+    else { enRarityErr++; if (enBad.length < 10) enBad.push(`${it.set} ${it.code} ${it.ver || ""}: cat=${it.rarity} att=${truth}`); }
+  }
 }
 
 const withCm = ITEMS.filter(i => i.cm != null).length;
@@ -95,6 +95,7 @@ console.log("  Campi/url invalidi:", issues.length);
 console.log("  Doppioni inattesi:", dupUnexpected);
 console.log("  Rarità EN errate:", enRarityErr);
 console.log("  Rarità JP errate:", jpRarityErr);
+console.log("  Senza fonte rarità:", noSource);
 
 if (issues.length) {
   console.log("\n  Primi 15 errori url/campi:");
@@ -107,6 +108,6 @@ console.log("\n--- AVVISI (non bloccanti) ---");
 console.log("  Senza prezzo:", warn.filter(w => w.field === "cm").length);
 console.log("  Senza rarità:", warn.filter(w => w.field === "rarity").length);
 
-const ok = issues.length === 0 && dupUnexpected === 0 && enRarityErr === 0 && jpRarityErr === 0;
+const ok = issues.length === 0 && dupUnexpected === 0 && enRarityErr === 0 && jpRarityErr === 0 && noSource === 0;
 console.log(ok ? "\n✅ AUDIT OK — tutto coerente" : `\n❌ AUDIT: ${issues.length + dupUnexpected + enRarityErr + jpRarityErr} problemi`);
 process.exit(ok ? 0 : 1);

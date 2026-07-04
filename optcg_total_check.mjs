@@ -1,52 +1,14 @@
 #!/usr/bin/env node
 // Check TOTALE: tcggo grezzo, catalog.js, rarità Limitless, set, filtri, link CM.
 import { readFileSync, existsSync } from "node:fs";
-import { cleanRar, limitlessKey } from "./optcg_rarity_lib.mjs";
+import { expectedRarity, loadRarityContext } from "./optcg_rarity_lookup.mjs";
 
 const FAIL = [];
 const WARN = [];
 const fail = (m) => FAIL.push(m);
 const warn = (m) => WARN.push(m);
 
-const cards = Object.values(JSON.parse(readFileSync("optcg_cards_raw.json", "utf8")));
-const CMMAP = JSON.parse(readFileSync("optcg_cmmap.json", "utf8")).entries || {};
-const normSet = s => (s || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-const isJP = c => /(-JP\b|\bJP\b)/i.test(c.ccn || "") || /(-JP\b|\bJP\b)/i.test(c.numbered || "");
-const RARITY_TIER = {
-  DON: 0, Rare: 1, Leader: 2, "Super Rare": 3, "Secret Rare": 4,
-  "Alt-art": 5, "Special Rare": 6, SP: 6, "Manga Rare": 7, "Treasure Rare": 8, Promo: 3,
-};
-const tier = r => RARITY_TIER[r] ?? 2;
-const TCGGO_RARITY = new Map();
-for (const c of cards) {
-  const r = cleanRar(c.rarity);
-  if (!r || r === "Common" || r === "Uncommon") continue;
-  TCGGO_RARITY.set(`${normSet(c.set)}|${c.code}|${c.version || ""}|${isJP(c) ? "JP" : "EN"}`, r);
-}
-
-// stessa logica di optcg_catalog.mjs lookupRarity
-function expectedRarity(it, db) {
-  const { byCmId, byCodeVer, entries } = db;
-  const lang = it.lang || "EN";
-  if (it.cmId != null) {
-    const ex = Object.values(CMMAP).find(e => e.extra && String(e.en_id) === String(it.cmId));
-    if (ex?.rarity) return cleanRar(ex.rarity);
-  }
-  const cv = `${it.code}|${it.ver || ""}`;
-  let fromLim = lang === "JP" && byCodeVer?.[`${cv}|JP`] ? byCodeVer[`${cv}|JP`] : byCodeVer?.[cv];
-  if (!fromLim) fromLim = entries?.[`${it.code}|${it.ver || ""}|${lang}`];
-  const fromCm = it.cmId != null ? byCmId?.[String(it.cmId)] : null;
-  const fromTcg = TCGGO_RARITY.get(`${normSet(it.set)}|${it.code}|${it.ver || ""}|${lang}`);
-  if (fromTcg && fromCm && fromTcg !== fromCm) return fromTcg;
-  if (fromLim && fromTcg && fromTcg !== fromLim) {
-    if (tier(fromTcg) > tier(fromLim)) return fromTcg;
-    if (tier(fromLim) > tier(fromTcg) && fromTcg === "Rare") return fromLim;
-    return fromTcg;
-  }
-  if (fromLim) return fromLim;
-  if (fromCm) return fromCm;
-  return null;
-}
+loadRarityContext();
 
 function wlKey(it) {
   const set = String(it.set || "").replace("-", "");
