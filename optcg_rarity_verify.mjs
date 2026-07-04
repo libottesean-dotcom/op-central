@@ -19,8 +19,11 @@ for (const it of cards) {
 const en = cards.filter(c => c.lang === "EN" && c.ver);
 const jp = cards.filter(c => c.lang === "JP");
 
+const noSourceEn = cards.filter(c => c.lang === "EN" && !expectedRarity(c, db)).length;
+const noSourceJp = cards.filter(c => c.lang === "JP" && !expectedRarity(c, db)).length;
+
 console.log("=== AUDIT RARITÀ ===");
-console.log("Carte:", cards.length, "| match:", ok, "| ERR:", bad.length, "| no fonte:", noSource);
+console.log("Carte:", cards.length, "| match:", ok, "| ERR:", bad.length, "| no fonte EN:", noSourceEn, "| no fonte JP:", noSourceJp);
 console.log("EN con ver:", en.length, "| JP:", jp.length);
 if (bad.length) console.log("Errori (max 15):", bad.slice(0, 15));
 
@@ -31,4 +34,5 @@ const jpIds = new Set(Object.values(CMMAP).map(e => e.jp_id).filter(Boolean));
 const jpInDb = [...jpIds].filter(id => db.byCmId[String(id)]).length;
 console.log("JP cmmap ids con rarità:", jpInDb, "/", jpIds.size);
 
-process.exit(bad.length || noSource ? 1 : 0);
+// Fallisce solo se rarità SBAGLIATA o EN senza fonte. JP eredita rarità EN: ok senza Limitless.
+process.exit(bad.length || noSourceEn || empty.length ? 1 : 0);

@@ -69,11 +69,10 @@ for (const [set, code, ver, name] of [
   ok(it && it.cm != null && it.fetched_at, `extra ${name}: cm=€${it?.cm} trend=€${it?.trend}`);
 }
 
-// 5) doppioni per (wlKey, lang): tollerate solo le collisioni note dei dati tcggo
-// (varianti sealed "Sleeved Pack Case"/"Pre-Errata" e doppioni grezzi con stesso code+ver)
+// 5) doppioni per (wlKey, lang, cmId): JP spesso ha ver=null su più prodotti distinti
 const seen = new Map(); let dup = 0;
 for (const it of ITEMS) {
-  const k = wlKey(it) + "|" + it.lang;
+  const k = wlKey(it) + "|" + it.lang + (it.cmId ? "|cm" + it.cmId : "");
   if (seen.has(k) && !(it.type !== "Carta" || /sleeved|pre-errata/i.test(it.char || "") || it.rarity === "DON")) dup++;
   seen.set(k, it);
 }

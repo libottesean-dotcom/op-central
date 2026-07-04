@@ -11,6 +11,8 @@ on:
       - catalog.js
       - "chase-tracker (2).html"
       - optcg_catalog.mjs
+      - optcg_verify.mjs
+      - optcg_rarity_verify.mjs
       - optcg_rarity.json
       - optcg_rarity.mjs
       - optcg_rarity_lib.mjs
