@@ -801,8 +801,10 @@
   .cd-media {
     border-radius: 14px; overflow: hidden; border: 1px solid var(--line);
     background: var(--obsidian); aspect-ratio: 5/7; display: flex; align-items: center; justify-content: center;
+    cursor: zoom-in;
   }
-  .cd-media img { width: 100%; height: 100%; object-fit: contain; }
+  .cd-media:not(.has-img) { cursor: default; }
+  .cd-media img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
   .cd-media .ph { color: var(--muted-2); font-family: 'Geist Mono', monospace; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .cd-tags { display: flex; flex-wrap: wrap; gap: 8px; }
   .cd-tag {
@@ -868,6 +870,42 @@
   .cd-foot a.cm-link { font-size: 13px; font-weight: 600; color: var(--gold); text-decoration: none; border: 1px solid rgba(207,162,75,0.4); padding: 8px 16px; border-radius: 10px; transition: all 0.15s; flex-shrink: 0; white-space: nowrap; }
   .cd-foot a.cm-link:hover { background: var(--gold-soft); }
   .cd-clickable { cursor: pointer; }
+  /* zoom fullscreen immagine carta */
+  .cd-zoom {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(4,5,7,0.94); backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    cursor: zoom-out;
+    animation: cdZoomIn 0.18s ease-out;
+  }
+  .cd-zoom.open { display: flex; }
+  @keyframes cdZoomIn { from { opacity: 0; } to { opacity: 1; } }
+  .cd-zoom img {
+    max-width: min(96vw, 520px);
+    max-height: min(92dvh, 92svh);
+    width: auto; height: auto;
+    object-fit: contain;
+    border-radius: 14px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.75);
+    pointer-events: none;
+  }
+  .cd-zoom-close {
+    position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: rgba(0,0,0,0.45); border: 1px solid var(--line);
+    color: var(--porcelain); font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cd-zoom-close:hover { border-color: var(--gold); color: var(--gold); }
+  .cd-zoom-hint {
+    position: absolute; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+    font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.06em;
+    color: var(--muted-2); pointer-events: none; white-space: nowrap;
+  }
+  @media (max-width: 760px) {
+    .cd-zoom img { max-width: 98vw; max-height: 88dvh; }
+  }
   @media (max-width: 760px) {
     .cd-overlay {
       padding: 0;
@@ -1128,6 +1166,13 @@
     <button class="cd-close" id="cd-close" aria-label="Chiudi">✕</button>
     <div class="cd-grid" id="cd-content"></div>
   </div>
+</div>
+
+<!-- Zoom fullscreen immagine carta -->
+<div class="cd-zoom" id="cd-zoom" aria-hidden="true">
+  <button class="cd-zoom-close" id="cd-zoom-close" type="button" aria-label="Chiudi zoom">✕</button>
+  <img id="cd-zoom-img" alt="">
+  <span class="cd-zoom-hint">Tocca ovunque per chiudere</span>
 </div>
 
 <script src="opc-config.js"></script>
@@ -2273,7 +2318,7 @@
 
     document.getElementById("cd-content").innerHTML = `
       <div class="cd-left">
-        <div class="cd-media">${media}</div>
+        <div class="cd-media${src ? " has-img" : ""}"${src ? ` data-zoom-src="${src}"` : ""}>${media}</div>
         <div class="cd-meta-wrap">
           <div class="cd-tags">
             <span class="cd-tag ${it.lang === "JP" ? "jp" : "en"}">${it.lang === "JP" ? "Giapponese" : "Inglese"}</span>
@@ -2328,7 +2373,21 @@
     overlay.classList.add("open");
     document.documentElement.classList.add("no-scroll");
   }
+  function closeCardZoom() {
+    const z = document.getElementById("cd-zoom");
+    z.classList.remove("open");
+    z.setAttribute("aria-hidden", "true");
+    document.getElementById("cd-zoom-img").removeAttribute("src");
+  }
+  function openCardZoom(src) {
+    if (!src) return;
+    document.getElementById("cd-zoom-img").src = src;
+    const z = document.getElementById("cd-zoom");
+    z.classList.add("open");
+    z.setAttribute("aria-hidden", "false");
+  }
   function closeCard() {
+    closeCardZoom();
     document.getElementById("cd-overlay").classList.remove("open");
     document.documentElement.classList.remove("no-scroll");
     window.scrollTo(0, cdScrollY);
@@ -2339,11 +2398,22 @@
   document.getElementById("cd-overlay").addEventListener("click", (e) => {
     if (e.target.id === "cd-overlay") closeCard();
   });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCard(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (document.getElementById("cd-zoom").classList.contains("open")) closeCardZoom();
+    else closeCard();
+  });
+  document.getElementById("cd-zoom").addEventListener("click", closeCardZoom);
+  document.getElementById("cd-zoom-close").addEventListener("click", (e) => { e.stopPropagation(); closeCardZoom(); });
   const cdCur = () => ITEMS[cdCurrent];
   const cdRefresh = () => { if (cdCur()) renderCardDetail(cdCur()); renderCurrent(); };
-  // click dentro la scheda: bottoni collezione/watch
+  // click dentro la scheda: zoom immagine · bottoni collezione/watch
   document.getElementById("cd-content").addEventListener("click", (e) => {
+    const media = e.target.closest(".cd-media.has-img");
+    if (media) {
+      const src = media.dataset.zoomSrc || media.querySelector("img")?.src;
+      if (src) { e.stopPropagation(); openCardZoom(src); return; }
+    }
     const act = e.target.closest("[data-act]");
     if (act) { setBucket(ITEMS[Number(act.dataset.i)], act.dataset.act); cdRefresh(); return; }
   });
