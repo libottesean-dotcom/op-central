@@ -1,5 +1,5 @@
 # PIANO — OP Central (One Piece TCG · Market & Collection)
-> **Fonte di verità del progetto.** Ultimo aggiornamento: **03/07/2026 ~10:25**.  
+> **Fonte di verità del progetto.** Ultimo aggiornamento: **04/07/2026 ~10:05**.  
 > Panoramica repo: [README.md](./README.md)
 
 ---
@@ -14,8 +14,9 @@
 | **Repo** | https://github.com/libottesean-dotcom/op-central |
 
 ### Completato ✅
-- **1181 voci** live · rarità Limitless EN/JP · verify 100% PASS
-- Prezzi API ~**94%** (1104/1181) · link Cardmarket · sync Supabase
+- **1800 voci** live (1746 carte chase + 24 box + 30 case) · verify + audit **100% PASS**
+- **tcggo grezzo 4273/4273** completo · filtri: no Common/Uncommon/ST · solo rarità chase + fonte Limitless
+- Prezzi API ~**92%** (1658/1800) · link Cardmarket · sync Supabase
 - **Cron unico 05:30 Roma** (GitHub Actions) · deploy Render automatico su push
 - Refresh rarità **domenica 04:00 Roma** (settimanale)
 - UI griglia card allineata (titoli, Pagato/P&L, bottoni in fondo)
@@ -30,14 +31,15 @@
 
 **Nessun backup 06:00 · nessun cron Render.** Il PC non serve acceso.
 
-### Numeri (03/07/2026)
+### Numeri (04/07/2026)
 | Voce | Valore |
 |---|---|
-| Carte tcggo | **1980 / 4273** (~46%) — pagina **100/214**, cresce ogni notte |
-| Prezzi API live | **1104 / 1181** (~94%) |
-| Mapping Cardmarket | **1006 en_id** / 1072 entry · **110 jp_id** · **66** en_id restanti |
-| Storico prezzi | **2 giorni** → grafici 7/30g tra 1–4 settimane |
-| Rarità audit | **0 errori** EN/JP |
+| Carte tcggo grezzo | **4273 / 4273** ✅ completo |
+| Catalogo app (chase) | **1800 voci** · 1746 carte · 25 set |
+| Prezzi API live | **1658 / 1800** (~92%) |
+| Rarità vs Limitless | **0 errori** · 0 Common/Uncommon · 0 tcggo-only |
+| Mapping Cardmarket | cresce ogni notte (cron 05:30) |
+| Storico prezzi | snapshot giornalieri → grafici 7/30g |
 
 ---
 
@@ -45,10 +47,9 @@
 
 | Task | ETA | Come |
 |---|---|---|
-| Catalogo tcggo completo | ~3–4 giorni | build pagina 100→214 (budget RapidAPI) |
-| Prezzi API ~100% | pochi giorni | ~77 voci senza prezzo · budget 2000 req/g Cardmarket |
+| Prezzi API ~100% | pochi giorni | ~142 voci senza prezzo · budget Cardmarket |
 | Storico 7/14/30g | 7–30 giorni | 1 snapshot/giorno (cron 05:30) |
-| 66 en_id da mappare | prossimi giorni | tier search giornaliero in `optcg_map.mjs` |
+| Mapping en_id restanti | prossimi giorni | tier search in `optcg_map.mjs` |
 
 ---
 

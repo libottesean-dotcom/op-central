@@ -29,6 +29,11 @@ const EXTRA_CM_IDS = new Set(
 const EXTRA_KEYS = new Set(
   Object.values(CMMAP).filter(e => e.extra).map(e => keyOf(e.set, e.code, e.ver)),
 );
+// extra watchlist: rarità verificate manualmente (promo fuori Limitless)
+const EXTRA_RARITY_BY_CMID = {};
+for (const e of Object.values(CMMAP)) {
+  if (e.extra && e.en_id && e.rarity) EXTRA_RARITY_BY_CMID[String(e.en_id)] = cleanRar(e.rarity);
+}
 
 // ---- Storico prezzi REALE (snapshot giornalieri di optcg_history.mjs) ----
 // optcg_history/YYYY-MM-DD.json -> per ogni prodotto una serie [{d, p}] (p = trend,
@@ -100,6 +105,8 @@ function applyPrices(item, rec, id) {
 // Price floor (EUR): SOLO le DON con prezzo NOTO sotto questa soglia vengono escluse (junk).
 // Le DON senza prezzo restano; tutte le altre rarità e box/case non sono filtrati.
 const MIN_PRICE = 1;
+const BANNED_RARITIES = new Set(["Common", "Uncommon"]);
+const VALID_CODE = c => /^(OP\d|EB\d|PRB\d|P-\d)/i.test(String(c.code || ""));
 
 // Rarità per versione: Limitless TCG (allineato a Cardmarket V.n) → optcg_rarity.json.
 // Fallback: tcggo quando le versioni hanno già rarità distinte.
@@ -115,6 +122,7 @@ const codeVerFromUrl = url => {
 };
 
 const lookupRarity = (code, ver, cmId, lang, url) => {
+  if (cmId != null && EXTRA_RARITY_BY_CMID[String(cmId)]) return EXTRA_RARITY_BY_CMID[String(cmId)];
   if (cmId != null && RARITY_BY_CMID[String(cmId)]) return RARITY_BY_CMID[String(cmId)];
   const tryCode = (c, v) => {
     if (!c) return null;
@@ -191,6 +199,7 @@ const refPrice = rec => {
 const keptCards = [];
 for (const c of cards) {
   if (!c.code || !c.set) continue;
+  if (!VALID_CODE(c)) continue;
   if (/^ST\d/.test(normSet(c.set)) || /^ST\d/i.test(String(c.code))) continue;
   if (c.rarity === "Common" || c.rarity === "Uncommon") continue;
   if (c.cm_id != null && EXTRA_CM_IDS.has(String(c.cm_id))) continue;
@@ -209,7 +218,7 @@ const rarityOfCard = (c, url = null) => {
   // tcggo solo V.1 / senza versione — V.2+ senza Limitless non si indovina (Alt-art ≠ base)
   if (c.version && c.version !== "V.1") return null;
   const tcg = cleanRar(c.rarity);
-  return tcg || null;
+  return tcg && !BANNED_RARITIES.has(tcg) ? tcg : null;
 };
 
 // pass 2: gemelli JP — ver dal nome prodotto JP; rarità dalla versione EN omologa (V.n)
@@ -322,9 +331,11 @@ for (const { c, price } of keptCards) {
     const urlRarity = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url);
     if (urlRarity) item.rarity = urlRarity;
   }
-  // coerenza finale: se Limitless dice altro, vince Limitless
+  // coerenza finale: Limitless vince; senza fonte Limitless non si emette (salvo extra sotto)
   const finalR = lookupRarity(item.code, item.ver, item.cmId, item.lang, item.url);
-  if (finalR) item.rarity = finalR;
+  if (finalR) item.rarity = cleanRar(finalR);
+  else continue;
+  if (BANNED_RARITIES.has(item.rarity)) continue;
   items.push(item);
   singles++;
 
@@ -354,8 +365,12 @@ for (const { c, price } of keptCards) {
     if (jpItem.cmId && RARITY_BY_CMID[String(jpItem.cmId)]) jpItem.rarity = RARITY_BY_CMID[String(jpItem.cmId)];
     else {
       const jpUrlRarity = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url);
-      if (jpUrlRarity) jpItem.rarity = jpUrlRarity;
+      if (jpUrlRarity) jpItem.rarity = cleanRar(jpUrlRarity);
     }
+    const jpFinal = lookupRarity(jpItem.code, jpItem.ver, jpItem.cmId, "JP", jpItem.url);
+    if (jpFinal) jpItem.rarity = cleanRar(jpFinal);
+    else continue;
+    if (BANNED_RARITIES.has(jpItem.rarity)) continue;
     if (jpItem.cm != null) {
       jpItem.target = Math.round(jpItem.cm);
       items.push(jpItem);
@@ -430,6 +445,11 @@ for (const e of Object.values(CMMAP)) {
   applyPrices(x, rec, e.en_id);
   if (e.rarity) x.rarity = cleanRar(e.rarity);
   else if (x.cmId && RARITY_BY_CMID[String(x.cmId)]) x.rarity = RARITY_BY_CMID[String(x.cmId)];
+  else {
+    const xr = lookupRarity(x.code, x.ver, x.cmId, x.lang, x.url);
+    if (xr) x.rarity = cleanRar(xr);
+  }
+  if (!x.rarity || BANNED_RARITIES.has(x.rarity)) continue;
   items.push(x);
   extras++;
 }
