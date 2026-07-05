@@ -10,7 +10,11 @@
     "hard_cap_today": 0,
     "daily_cap": 1950,
     "map_reserve": 500,
-    "refresh_days": { "1": 1, "2": 1, "3": 2, "4": 3 }
+    "map_reserve_backlog_high": 100,
+    "refresh_days": { "1": 1, "2": 1, "3": 2, "4": 3 },
+    "prices_concurrency": 3,
+    "prices_pause_after_errors": 20,
+    "prices_pause_ms": 45000
   },
   "telegram": {
     "enabled": false,

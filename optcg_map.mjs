@@ -35,10 +35,6 @@ const { singles, sealed } = buildRawItems();
 const today = new Date().toISOString().slice(0, 10);
 const B = CONFIG.budget || {};
 const cap = (B.hard_cap_date === today && B.hard_cap_today) ? B.hard_cap_today : (B.daily_cap ?? 1800);
-const reserve = Number(process.env.MAP_RESERVE ?? B.map_reserve ?? 500);
-const guard = new BudgetGuard(cap - reserve);
-const u0 = await guard.init();
-console.log(`[map] piano=${u0.plan} usate oggi=${u0.used_today}/${u0.daily_limit} · cap mapping=${cap - reserve} (riserva prezzi=${reserve})`);
 
 // ---- Fase A (GRATIS): en_id da cm_id tcggo ----
 let fromCmId = 0;
@@ -99,7 +95,17 @@ const codeTier = code => Math.min(...byCode.get(code).map(tierOf));
 const queue = [...byCode.keys()].filter(codeNeedsSearch).sort((a, b) => codeTier(a) - codeTier(b));
 const maxTier = Number(process.env.MAP_MAX_TIER || 4);
 const queueT = queue.filter(c => codeTier(c) <= maxTier);
-console.log(`[map] code da cercare: ${queueT.length} (tier<=${maxTier}) su ${byCode.size} totali`);
+const sealedPending = sealed.filter(it => {
+  const e = map.entries[it.key];
+  return e?.en_id && e.jp_id == null;
+}).length;
+const backlog = queueT.length + sealedPending;
+const reserveDefault = Number(process.env.MAP_RESERVE ?? B.map_reserve ?? 500);
+const reserve = backlog > 400 ? 100 : backlog > 200 ? 250 : backlog > 50 ? 400 : reserveDefault;
+const guard = new BudgetGuard(cap - reserve);
+const u0 = await guard.init();
+console.log(`[map] piano=${u0.plan} usate oggi=${u0.used_today}/${u0.daily_limit} · backlog=${backlog} · cap mapping=${cap - reserve} (riserva prezzi=${reserve})`);
+console.log(`[map] code da cercare: ${queueT.length} (tier<=${maxTier}) su ${byCode.size} totali · sealed JP pending: ${sealedPending}`);
 
 let searches = 0, jpFound = 0, enFilled = 0, stopped = false;
 

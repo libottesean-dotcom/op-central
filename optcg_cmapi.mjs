@@ -10,9 +10,9 @@ const API = CONFIG.cardmarketapi;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// GET con retry: 429 -> attende Retry-After; 502/503/timeout -> 1 retry.
-export async function apiGet(path, { timeoutMs = 90000 } = {}) {
-  for (let attempt = 0; attempt < 4; attempt++) {
+// GET con retry: 429 -> Retry-After; 502/503 -> backoff esponenziale (Cardmarket spesso instabile al mattino).
+export async function apiGet(path, { timeoutMs = 90000, maxAttempts = 8 } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let res;
     try {
       const ctl = new AbortController();
@@ -20,8 +20,8 @@ export async function apiGet(path, { timeoutMs = 90000 } = {}) {
       res = await fetch(API.base_url + path, { headers: { "X-API-Key": API.api_key }, signal: ctl.signal });
       clearTimeout(t);
     } catch (e) {
-      if (attempt >= 2) throw new Error(`network error on ${path}: ${e.message}`);
-      await sleep(3000);
+      if (attempt >= maxAttempts - 1) throw new Error(`network error on ${path}: ${e.message}`);
+      await sleep(Math.min(3000 * (attempt + 1), 30000));
       continue;
     }
     if (res.status === 429) {
@@ -31,8 +31,10 @@ export async function apiGet(path, { timeoutMs = 90000 } = {}) {
       continue;
     }
     if (res.status === 502 || res.status === 503) {
-      if (attempt >= 2) throw new Error(`HTTP ${res.status} on ${path}`);
-      await sleep(3000);
+      if (attempt >= maxAttempts - 1) throw new Error(`HTTP ${res.status} on ${path}`);
+      const wait = Math.min(4000 * Math.pow(2, attempt), 60000);
+      if (attempt === 0) console.log(`  [${res.status}] retry con backoff su ${path}`);
+      await sleep(wait);
       continue;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}: ${(await res.text()).slice(0, 200)}`);

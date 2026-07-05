@@ -1,20 +1,20 @@
-name: OP Central — aggiornamento giornaliero
+# Secondo pass prezzi: pomeriggio, budget quasi tutto per fetch (mapping di solito finito al mattino).
+name: OP Central — prezzi pomeriggio
 
 on:
   schedule:
-    # 03:30 UTC ≈ 05:30 ora di Roma (CEST). GitHub ignora spesso timezone: UTC esplicito.
-    - cron: "30 3 * * *"
+    - cron: "30 12 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: optcg-daily
+  group: optcg-prices-afternoon
   cancel-in-progress: false
 
 jobs:
-  daily:
+  prices:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,21 +38,13 @@ jobs:
         env:
           CARDMARKET_API_KEY: ${{ secrets.CARDMARKET_API_KEY }}
 
-      - name: Pipeline dati
+      - name: Prezzi + catalogo (solo refresh)
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          RARITY_MAX_NEW: 0
-          CM_RAPID_KEY: ${{ secrets.CM_RAPID_KEY }}
-          CM_RAPID_KEYS: ${{ secrets.CM_RAPID_KEYS }}
-          PRICES_CONCURRENCY: "3"
-          MAP_RESERVE: "100"
+          PRICES_CONCURRENCY: "4"
         run: |
-          node optcg_build.mjs
-          node optcg_map.mjs
           node optcg_prices.mjs
           node optcg_history.mjs
           node optcg_history_db.mjs
-          node optcg_rarity.mjs
           node optcg_catalog.mjs
           node optcg_urls.mjs
           node optcg_verify.mjs
@@ -61,13 +53,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add catalog.js optcg_rarity.json optcg_cmmap.json optcg_prices.json optcg_state.json \
-            optcg_cards_raw.json optcg_products_raw.json optcg_history/ || true
+          git add catalog.js optcg_prices.json optcg_history/ || true
           if git diff --staged --quiet; then
             echo "Nessuna modifica da pubblicare."
             exit 0
           fi
-          git commit -m "Auto: aggiornamento catalogo $(date -u +%Y-%m-%d)"
+          git commit -m "Auto: refresh prezzi $(date -u +%Y-%m-%d) pomeriggio"
           git pull --rebase origin master
           git push
 
