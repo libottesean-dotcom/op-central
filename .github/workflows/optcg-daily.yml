@@ -46,6 +46,8 @@ jobs:
           CM_RAPID_KEYS: ${{ secrets.CM_RAPID_KEYS }}
           PRICES_CONCURRENCY: "3"
           MAP_RESERVE: "100"
+          PRICES_MAX_WALL_MS: "2400000"
+          PRICES_MAX_ERRORS: "60"
         run: |
           node optcg_build.mjs
           node optcg_map.mjs

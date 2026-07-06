@@ -91,9 +91,24 @@ console.log(`[prices] job totali=${uniq.length} · da fare oggi=${queue.length} 
 const CONCURRENCY = Number(process.env.PRICES_CONCURRENCY || 3);
 const PAUSE_AFTER_CONSEC = Number(process.env.PRICES_PAUSE_AFTER || 20);
 const PAUSE_MS = Number(process.env.PRICES_PAUSE_MS || 45000);
+const MAX_WALL_MS = Number(process.env.PRICES_MAX_WALL_MS || 40 * 60 * 1000);
+const MAX_ERRORS = Number(process.env.PRICES_MAX_ERRORS || 60);
+const startedAt = Date.now();
 
 let done = 0, errors = 0, skipped = 0, stopped = false, qi = 0;
 let consecutive = 0;
+
+const shouldStopPrices = () => {
+  if (Date.now() - startedAt > MAX_WALL_MS) {
+    console.log(`[prices] timeout ${MAX_WALL_MS / 60000} min — passo al catalogo`);
+    return true;
+  }
+  if (errors >= MAX_ERRORS && done < 5) {
+    console.log(`[prices] circuit breaker: ${errors} errori, ${done} ok — API down, continuo domani`);
+    return true;
+  }
+  return false;
+};
 
 async function handleJob(j) {
   const d = await apiGet(`/api/v1/card/${j.id}?language=${j.lang}`);
@@ -115,6 +130,7 @@ async function handleJob(j) {
 
 async function worker() {
   while (true) {
+    if (shouldStopPrices()) { stopped = true; return; }
     const j = queue[qi++];
     if (!j) return;
     if (!(await guard.allow())) { stopped = true; return; }

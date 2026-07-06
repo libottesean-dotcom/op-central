@@ -41,6 +41,8 @@ jobs:
       - name: Prezzi + catalogo (solo refresh)
         env:
           PRICES_CONCURRENCY: "4"
+          PRICES_MAX_WALL_MS: "3600000"
+          PRICES_MAX_ERRORS: "80"
         run: |
           node optcg_prices.mjs
           node optcg_history.mjs
